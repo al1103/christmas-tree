@@ -15,6 +15,7 @@ const BUCKET_NAME = 'christmas-tree-photos';
 const KV_NAMESPACE_ID = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
 const KV_API_TOKEN = process.env.CLOUDFLARE_KV_API_TOKEN || '';
 const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || ''; // R2 bucket public URL
 
 // Helper function to compress and convert image to JPEG
 async function compressImage(base64Data: string): Promise<Buffer> {
@@ -97,7 +98,8 @@ export default async function handler(req: any, res: any) {
       await s3Client.send(command);
 
       // Construct public URL
-      const imageUrl = `https://pub-${CLOUDFLARE_ACCOUNT_ID}.r2.dev/${filename}`;
+      // R2 public URL already points to the bucket root
+      const imageUrl = `${R2_PUBLIC_URL}/${filename}`;
       imageUrls.push(imageUrl);
     }
 
