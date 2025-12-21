@@ -193,28 +193,16 @@ export const Polaroids: React.FC<PolaroidsProps> = ({
         r * Math.sin(theta)
       );
 
-      // 2. Chaos Position - Stack photos directly in front of camera
+      // 2. Chaos Position - Arrange photos in a circle around the camera
       // Camera is at [0, 4, 20], Scene group offset is [0, -5, 0]
-      const relativeY = 7; // Center height
-      const relativeZ = 14; // In front of camera
-
-      // Arrange photos in grid directly facing camera (2-3 columns)
-      const cols = Math.min(3, count);
-      const rows = Math.ceil(count / cols);
-      const spacingX = 2.5;
-      const spacingY = 2.5;
-
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-
-      // Center the grid
-      const offsetX = ((cols - 1) * spacingX) / 2;
-      const offsetY = ((rows - 1) * spacingY) / 2;
+      const chaosRadius = 8 + Math.random() * 4; // Random radius for depth
+      const chaosAngle = (i / count) * Math.PI * 2; // Evenly distributed around
+      const chaosY = 5 + Math.sin(i * 1.5) * 3; // Varied heights
 
       const chaosPos = new THREE.Vector3(
-        col * spacingX - offsetX, // Centered horizontally
-        relativeY + offsetY - row * spacingY, // Stacked vertically
-        relativeZ // Same distance - directly in front
+        Math.cos(chaosAngle) * chaosRadius,
+        chaosY,
+        Math.sin(chaosAngle) * chaosRadius + 10 // Offset forward toward camera
       );
 
       data.push({
