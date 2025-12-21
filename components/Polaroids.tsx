@@ -65,7 +65,8 @@ const PolaroidItem: React.FC<{
     );
   }, [data.url]);
 
-  // Random sway offset
+  // Reusable objects to avoid creating new ones each frame
+  const tempObj = useMemo(() => new THREE.Object3D(), []);
   const swayOffset = useMemo(() => Math.random() * 100, []);
 
   useFrame((state, delta) => {
@@ -73,77 +74,29 @@ const PolaroidItem: React.FC<{
 
     const isFormed = mode === TreeMode.FORMED;
     const time = state.clock.elapsedTime;
-
-    // 1. Position Interpolation
     const targetPos = isFormed ? data.targetPos : data.chaosPos;
-    const step = delta * data.speed;
+    const pos = groupRef.current.position;
 
-    // Smooth lerp to target position
-    groupRef.current.position.lerp(targetPos, step);
+    // Only lerp if distance is significant (optimization)
+    if (pos.distanceToSquared(targetPos) > 0.001) {
+      pos.lerp(targetPos, delta * data.speed);
+    }
 
-    // 2. Rotation & Sway Logic
     if (isFormed) {
-      // Look at center but face outward
-      const dummy = new THREE.Object3D();
-      dummy.position.copy(groupRef.current.position);
-      dummy.lookAt(0, groupRef.current.position.y, 0);
-      dummy.rotateY(Math.PI); // Flip to face out
+      // Simplified rotation - look at center and face outward
+      tempObj.position.copy(pos);
+      tempObj.lookAt(0, pos.y, 0);
+      tempObj.rotateY(Math.PI);
+      groupRef.current.quaternion.slerp(tempObj.quaternion, delta * data.speed);
 
-      // Base rotation alignment
-      groupRef.current.quaternion.slerp(dummy.quaternion, step);
-
-      // Physical Swaying (Wind)
-      // Z-axis rotation for side-to-side swing
-      const swayAngle = Math.sin(time * 2.0 + swayOffset) * 0.08;
-      // X-axis rotation for slight front-back tilt
-      const tiltAngle = Math.cos(time * 1.5 + swayOffset) * 0.05;
-
-      groupRef.current.rotateZ(swayAngle * delta * 5); // Apply over time or directly?
-      // For stable sway, we add to the base rotation calculated above.
-      // But since we slerp quaternion, let's just add manual rotation after slerp?
-      // Easier: Set rotation directly based on dummy + sway.
-
-      // Calculate the "perfect" rotation
-      const currentRot = new THREE.Euler().setFromQuaternion(
-        groupRef.current.quaternion
-      );
-      groupRef.current.rotation.z = currentRot.z + swayAngle * 0.05;
-      groupRef.current.rotation.x = currentRot.x + tiltAngle * 0.05;
-
-      // Reset scale in formed mode
-      groupRef.current.scale.setScalar(1);
+      // Simple sway using rotation directly
+      const sway = Math.sin(time * 2 + swayOffset) * 0.03;
+      groupRef.current.rotation.z += sway * delta;
     } else {
-      // Chaos mode - face toward camera with gentle floating
-      // Camera position relative to scene group: [0, 9, 20]
-      const cameraPos = new THREE.Vector3(0, 9, 20);
-      const dummy = new THREE.Object3D();
-      dummy.position.copy(groupRef.current.position);
-
-      // Make photos face the camera
-      dummy.lookAt(cameraPos);
-
-      // Smoothly rotate to face camera
-      groupRef.current.quaternion.slerp(dummy.quaternion, delta * 3);
-
-      // Add gentle floating wobble
-      const wobbleX = Math.sin(time * 1.5 + swayOffset) * 0.02;
-      const wobbleZ = Math.cos(time * 1.2 + swayOffset) * 0.02;
-
-      const currentRot = new THREE.Euler().setFromQuaternion(
-        groupRef.current.quaternion
-      );
-      groupRef.current.rotation.x = currentRot.x + wobbleX;
-      groupRef.current.rotation.z = currentRot.z + wobbleZ;
-
-      // Scale based on distance from center (X=0)
-      // Photo closest to center is largest
-      const xPos = groupRef.current.position.x;
-      const distFromCenter = Math.abs(xPos);
-      const targetScale = Math.max(0.6, 1.5 - distFromCenter * 0.15);
-      const currentScale = groupRef.current.scale.x;
-      groupRef.current.scale.setScalar(
-        currentScale + (targetScale - currentScale) * 0.1
-      );
+      // Chaos mode - face camera
+      tempObj.position.copy(pos);
+      tempObj.lookAt(0, 9, 20);
+      groupRef.current.quaternion.slerp(tempObj.quaternion, delta * 2);
     }
   });
 

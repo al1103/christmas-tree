@@ -136,72 +136,28 @@ export const Experience: React.FC<ExperienceProps> = ({
       {!isMobile && !isLowSpecPC && (
         <>
           <pointLight
-            position={[8, 3, 5]}
+            position={[8, 5, 5]}
             intensity={0.8}
             color="#ff3333"
-            distance={12}
+            distance={15}
           />
           <pointLight
             position={[-8, 5, 5]}
             intensity={0.8}
             color="#33ff33"
-            distance={12}
-          />
-          <pointLight
-            position={[0, 2, -8]}
-            intensity={1}
-            color="#ff6600"
             distance={15}
           />
           <pointLight
-            position={[5, 8, -5]}
-            intensity={1}
-            color="#ff69b4"
-            distance={12}
-          />
-          <pointLight
-            position={[-5, 10, 3]}
-            intensity={1}
-            color="#00ffff"
-            distance={12}
-          />
-
-          {/* More festive lights around the tree */}
-          <pointLight
-            position={[6, 6, 6]}
-            intensity={0.8}
-            color="#ffcc00"
-            distance={10}
-          />
-          <pointLight
-            position={[-6, 4, 6]}
-            intensity={0.8}
-            color="#ff00ff"
-            distance={10}
-          />
-          <pointLight
             position={[0, 12, 0]}
-            intensity={1.2}
+            intensity={1}
             color="#ffffff"
             distance={15}
           />
           <pointLight
-            position={[4, 2, -6]}
+            position={[0, 2, -8]}
             intensity={0.8}
-            color="#00ff88"
-            distance={10}
-          />
-          <pointLight
-            position={[-4, 7, -4]}
-            intensity={0.8}
-            color="#8800ff"
-            distance={10}
-          />
-          <pointLight
-            position={[7, 9, 2]}
-            intensity={0.8}
-            color="#ff4488"
-            distance={10}
+            color="#ff6600"
+            distance={12}
           />
         </>
       )}
