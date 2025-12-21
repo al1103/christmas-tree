@@ -237,15 +237,21 @@ export default function App() {
     <div className="w-full h-screen relative bg-gradient-to-b from-black via-[#001a0d] to-[#0a2f1e]">
       <ErrorBoundary>
         <Canvas
-          dpr={[1, 2]}
+          dpr={
+            typeof window !== "undefined" && window.innerWidth < 768
+              ? 1
+              : [1, 2]
+          }
           camera={{ position: [0, 4, 20], fov: 45 }}
           gl={{
-            antialias: false,
+            antialias:
+              typeof window !== "undefined" && window.innerWidth >= 768,
             stencil: false,
             alpha: false,
             preserveDrawingBuffer: true,
+            powerPreference: "high-performance",
           }}
-          shadows
+          shadows={typeof window !== "undefined" && window.innerWidth >= 768}
         >
           <Suspense fallback={null}>
             <Experience

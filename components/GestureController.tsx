@@ -297,14 +297,14 @@ export const GestureController: React.FC<GestureControllerProps> = ({
         indexBase.x - wrist.x,
         indexBase.y - wrist.y
       );
-      const isIndexExtended = distIndexTip > distIndexBase * 1.3; // Index must be somewhat extended
+      const isIndexExtended = distIndexTip > distIndexBase * 1.1; // Index must be somewhat extended
 
       const pinchDistance = Math.hypot(
         thumbTip.x - indexTip.x,
         thumbTip.y - indexTip.y
       );
       // Pinch: thumb and index close together AND index finger is extended
-      const isPinching = pinchDistance < 0.06 && isIndexExtended;
+      const isPinching = pinchDistance < 0.08 && isIndexExtended;
 
       // DECISION
       if (isPinching) {

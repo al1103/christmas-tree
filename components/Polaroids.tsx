@@ -109,6 +109,9 @@ const PolaroidItem: React.FC<{
       );
       groupRef.current.rotation.z = currentRot.z + swayAngle * 0.05;
       groupRef.current.rotation.x = currentRot.x + tiltAngle * 0.05;
+
+      // Reset scale in formed mode
+      groupRef.current.scale.setScalar(1);
     } else {
       // Chaos mode - face toward camera with gentle floating
       // Camera position relative to scene group: [0, 9, 20]
@@ -123,14 +126,24 @@ const PolaroidItem: React.FC<{
       groupRef.current.quaternion.slerp(dummy.quaternion, delta * 3);
 
       // Add gentle floating wobble
-      const wobbleX = Math.sin(time * 1.5 + swayOffset) * 0.03;
-      const wobbleZ = Math.cos(time * 1.2 + swayOffset) * 0.03;
+      const wobbleX = Math.sin(time * 1.5 + swayOffset) * 0.02;
+      const wobbleZ = Math.cos(time * 1.2 + swayOffset) * 0.02;
 
       const currentRot = new THREE.Euler().setFromQuaternion(
         groupRef.current.quaternion
       );
       groupRef.current.rotation.x = currentRot.x + wobbleX;
       groupRef.current.rotation.z = currentRot.z + wobbleZ;
+
+      // Scale based on distance from center (X=0)
+      // Photo closest to center is largest
+      const xPos = groupRef.current.position.x;
+      const distFromCenter = Math.abs(xPos);
+      const targetScale = Math.max(0.6, 1.5 - distFromCenter * 0.15);
+      const currentScale = groupRef.current.scale.x;
+      groupRef.current.scale.setScalar(
+        currentScale + (targetScale - currentScale) * 0.1
+      );
     }
   });
 
@@ -227,21 +240,28 @@ export const Polaroids: React.FC<PolaroidsProps> = ({
         r * Math.sin(theta)
       );
 
-      // 2. Chaos Position - Spread out and closer to camera
+      // 2. Chaos Position - Stack photos directly in front of camera
       // Camera is at [0, 4, 20], Scene group offset is [0, -5, 0]
-      // So relative to scene, camera is at y=9
-      const relativeY = 7; // Middle height for better visibility
-      const relativeZ = 18; // Slightly closer to camera
+      const relativeY = 7; // Center height
+      const relativeZ = 14; // In front of camera
 
-      // Create positions spread widely around camera
-      const angle = (i / count) * Math.PI * 2; // Distribute evenly
-      const distance = 4 + Math.random() * 5; // Distance 4-9 units
-      const heightSpread = (Math.random() - 0.3) * 6; // Height variation, biased upward
+      // Arrange photos in grid directly facing camera (2-3 columns)
+      const cols = Math.min(3, count);
+      const rows = Math.ceil(count / cols);
+      const spacingX = 2.5;
+      const spacingY = 2.5;
+
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+
+      // Center the grid
+      const offsetX = ((cols - 1) * spacingX) / 2;
+      const offsetY = ((rows - 1) * spacingY) / 2;
 
       const chaosPos = new THREE.Vector3(
-        distance * Math.cos(angle) * 0.8, // X spread
-        relativeY + heightSpread, // Higher vertical position
-        relativeZ - 3 + distance * Math.sin(angle) * 0.3 // Closer to camera
+        col * spacingX - offsetX, // Centered horizontally
+        relativeY + offsetY - row * spacingY, // Stacked vertically
+        relativeZ // Same distance - directly in front
       );
 
       data.push({
@@ -249,7 +269,7 @@ export const Polaroids: React.FC<PolaroidsProps> = ({
         url: uploadedPhotos[i],
         chaosPos,
         targetPos,
-        speed: 0.8 + Math.random() * 1.5, // Variable speed
+        speed: 1.5 + Math.random() * 0.5, // Faster speed for snappier transitions
       });
     }
     return data;

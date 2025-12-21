@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useMemo } from "react";
 import { Environment, OrbitControls, ContactShadows } from "@react-three/drei";
 import {
   EffectComposer,
@@ -7,13 +7,21 @@ import {
   Noise,
 } from "@react-three/postprocessing";
 import { BlendFunction } from "postprocessing";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Foliage } from "./Foliage";
 import { Ornaments } from "./Ornaments";
 import { Polaroids } from "./Polaroids";
 import { TreeStar } from "./TreeStar";
 import { Snow } from "./Snow";
 import { TreeMode } from "../types";
+
+// Detect mobile device
+const isMobile =
+  typeof window !== "undefined" &&
+  (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  ) ||
+    window.innerWidth < 768);
 
 interface ExperienceProps {
   mode: TreeMode;
@@ -52,26 +60,37 @@ export const Experience: React.FC<ExperienceProps> = ({
         controls.update();
       }
 
-      // Handle horizontal rotation based on hand position
+      // Handle rotation based on hand position (both horizontal and vertical)
       if (handPosition.detected) {
-        // Calculate target azimuth based on hand X position
-        // Hand at center (0.5) = no rotation, left/right = rotate
+        // Calculate target azimuth based on hand X position (left/right)
         const targetAzimuth = (handPosition.x - 0.5) * Math.PI * 1.5;
 
-        // Smoothly rotate to target
+        // Calculate target polar based on hand Y position (up/down)
+        // Invert Y because screen Y increases downward
+        const minPolar = Math.PI / 4;
+        const maxPolar = Math.PI / 1.8;
+        const targetPolar =
+          minPolar + (1 - handPosition.y) * (maxPolar - minPolar);
+
+        // Smoothly rotate azimuth (horizontal)
         const currentAzimuth = controls.getAzimuthalAngle();
-        let diff = targetAzimuth - currentAzimuth;
+        let azimuthDiff = targetAzimuth - currentAzimuth;
+        if (azimuthDiff > Math.PI) azimuthDiff -= Math.PI * 2;
+        if (azimuthDiff < -Math.PI) azimuthDiff += Math.PI * 2;
 
-        // Handle angle wrapping
-        if (diff > Math.PI) diff -= Math.PI * 2;
-        if (diff < -Math.PI) diff += Math.PI * 2;
-
-        // Only rotate if difference is significant
-        if (Math.abs(diff) > 0.01) {
-          // Manually rotate the azimuth - faster speed
-          controls.setAzimuthalAngle(currentAzimuth + diff * 0.15);
-          controls.update();
+        if (Math.abs(azimuthDiff) > 0.01) {
+          controls.setAzimuthalAngle(currentAzimuth + azimuthDiff * 0.15);
         }
+
+        // Smoothly rotate polar (vertical)
+        const currentPolar = controls.getPolarAngle();
+        const polarDiff = targetPolar - currentPolar;
+
+        if (Math.abs(polarDiff) > 0.01) {
+          controls.setPolarAngle(currentPolar + polarDiff * 0.1);
+        }
+
+        controls.update();
       }
     }
   });
@@ -90,62 +109,65 @@ export const Experience: React.FC<ExperienceProps> = ({
         enabled={true}
       />
 
-      {/* Lighting Setup for Maximum Luxury */}
+      {/* Lighting Setup - optimized */}
       <Environment preset="lobby" background={false} blur={0.8} />
-
-      <ambientLight intensity={0.5} color="#ffffff" />
+      <ambientLight intensity={0.6} color="#ffffff" />
 
       {/* Main spotlight */}
       <spotLight
         position={[10, 25, 10]}
         angle={0.3}
         penumbra={1}
-        intensity={3}
+        intensity={2.5}
         color="#fff5cc"
-        castShadow
+        castShadow={!isMobile}
       />
 
       {/* Golden accent light */}
-      <pointLight position={[-10, 8, -10]} intensity={2} color="#D4AF37" />
+      <pointLight position={[-10, 8, -10]} intensity={1.5} color="#D4AF37" />
 
-      {/* Christmas colored lights */}
-      <pointLight
-        position={[8, 3, 5]}
-        intensity={1.5}
-        color="#ff3333"
-        distance={15}
-      />
-      <pointLight
-        position={[-8, 5, 5]}
-        intensity={1.5}
-        color="#33ff33"
-        distance={15}
-      />
-      <pointLight
-        position={[0, 2, -8]}
-        intensity={1.5}
-        color="#ff6600"
-        distance={15}
-      />
-      <pointLight
-        position={[5, 8, -5]}
-        intensity={1}
-        color="#ff69b4"
-        distance={12}
-      />
-      <pointLight
-        position={[-5, 10, 3]}
-        intensity={1}
-        color="#00ffff"
-        distance={12}
-      />
+      {/* Extra lights only on PC for performance */}
+      {!isMobile && (
+        <>
+          <pointLight
+            position={[8, 3, 5]}
+            intensity={1}
+            color="#ff3333"
+            distance={15}
+          />
+          <pointLight
+            position={[-8, 5, 5]}
+            intensity={1}
+            color="#33ff33"
+            distance={15}
+          />
+          <pointLight
+            position={[0, 2, -8]}
+            intensity={1}
+            color="#ff6600"
+            distance={15}
+          />
+          <pointLight
+            position={[5, 8, -5]}
+            intensity={1}
+            color="#ff69b4"
+            distance={12}
+          />
+          <pointLight
+            position={[-5, 10, 3]}
+            intensity={1}
+            color="#00ffff"
+            distance={12}
+          />
+        </>
+      )}
 
-      {/* Snow falling */}
-      <Snow count={1500} />
+      {/* Snow falling - optimized for performance */}
+      <Snow count={isMobile ? 200 : 400} />
 
       <group position={[0, -5, 0]}>
-        <Foliage mode={mode} count={15000} />
-        <Ornaments mode={mode} count={800} />
+        <Foliage mode={mode} count={isMobile ? 2500 : 6000} />
+        <Ornaments mode={mode} count={isMobile ? 150 : 300} />
         <Polaroids
           mode={mode}
           uploadedPhotos={uploadedPhotos}
@@ -164,15 +186,15 @@ export const Experience: React.FC<ExperienceProps> = ({
         />
       </group>
 
+      {/* Post-processing effects - optimized for performance */}
       <EffectComposer enableNormalPass={false}>
         <Bloom
-          luminanceThreshold={0.6}
+          luminanceThreshold={0.7}
           mipmapBlur
-          intensity={2.5}
-          radius={0.8}
+          intensity={isMobile ? 1.2 : 2.0}
+          radius={0.6}
         />
-        <Vignette eskil={false} offset={0.1} darkness={0.6} />
-        <Noise opacity={0.015} blendFunction={BlendFunction.OVERLAY} />
+        <Vignette eskil={false} offset={0.1} darkness={0.5} />
       </EffectComposer>
     </>
   );

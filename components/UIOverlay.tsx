@@ -286,56 +286,6 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
                 </span>
               </button>
             )}
-
-            {/* Action buttons - Show when photos are uploaded */}
-            {hasPhotos && !shareLink && (
-              <div className="flex flex-col items-end gap-2">
-                {/* Share Link Button */}
-                <button
-                  onClick={handleShare}
-                  disabled={isSharing}
-                  className="group px-6 py-3 border-2 border-[#D4AF37] bg-black/70 backdrop-blur-md overflow-hidden transition-all duration-500 hover:shadow-[0_0_30px_#D4AF37] hover:border-[#fff] hover:bg-[#D4AF37]/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span className="relative z-10 font-serif text-base md:text-lg text-[#D4AF37] tracking-[0.1em] group-hover:text-white transition-colors whitespace-nowrap">
-                    {uploadProgress ||
-                      (isSharing ? "Generating..." : "Generate Share Link")}
-                  </span>
-                </button>
-                {shareError && (
-                  <p className="text-red-400 text-xs font-serif text-right">
-                    {shareError}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Share Link Display - Show after link is generated */}
-            {shareLink && (
-              <div className="bg-black/80 backdrop-blur-md border-2 border-[#D4AF37] p-4 max-w-sm">
-                <p className="text-[#F5E6BF] font-serif text-sm mb-2">
-                  分享链接已生成
-                </p>
-                <div className="flex items-center gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={shareLink}
-                    readOnly
-                    className="flex-1 bg-black/50 text-[#D4AF37] px-3 py-2 text-xs border border-[#D4AF37]/30 font-mono"
-                  />
-                  <button
-                    onClick={handleCopyLink}
-                    className="px-3 py-2 border border-[#D4AF37] bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 transition-colors shrink-0"
-                  >
-                    <span className="text-[#D4AF37] text-xs font-serif whitespace-nowrap">
-                      {copied ? "✓ 已复制" : "复制"}
-                    </span>
-                  </button>
-                </div>
-                <p className="text-[#F5E6BF]/50 text-xs font-serif">
-                  30天后过期
-                </p>
-              </div>
-            )}
           </>
         )}
       </div>
