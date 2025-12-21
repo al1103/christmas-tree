@@ -159,15 +159,53 @@ export const Experience: React.FC<ExperienceProps> = ({
             color="#00ffff"
             distance={12}
           />
+
+          {/* More festive lights around the tree */}
+          <pointLight
+            position={[6, 6, 6]}
+            intensity={0.8}
+            color="#ffcc00"
+            distance={10}
+          />
+          <pointLight
+            position={[-6, 4, 6]}
+            intensity={0.8}
+            color="#ff00ff"
+            distance={10}
+          />
+          <pointLight
+            position={[0, 12, 0]}
+            intensity={1.2}
+            color="#ffffff"
+            distance={15}
+          />
+          <pointLight
+            position={[4, 2, -6]}
+            intensity={0.8}
+            color="#00ff88"
+            distance={10}
+          />
+          <pointLight
+            position={[-4, 7, -4]}
+            intensity={0.8}
+            color="#8800ff"
+            distance={10}
+          />
+          <pointLight
+            position={[7, 9, 2]}
+            intensity={0.8}
+            color="#ff4488"
+            distance={10}
+          />
         </>
       )}
 
       {/* Snow falling - optimized for performance */}
-      <Snow count={isMobile ? 200 : 400} />
+      <Snow count={isMobile ? 300 : 600} />
 
       <group position={[0, -5, 0]}>
-        <Foliage mode={mode} count={isMobile ? 2500 : 6000} />
-        <Ornaments mode={mode} count={isMobile ? 150 : 300} />
+        <Foliage mode={mode} count={isMobile ? 4000 : 10000} />
+        <Ornaments mode={mode} count={isMobile ? 250 : 500} />
         <Polaroids
           mode={mode}
           uploadedPhotos={uploadedPhotos}

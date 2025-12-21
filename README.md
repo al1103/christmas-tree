@@ -18,25 +18,29 @@ TargetPosition：构成树木圆锥形状的目标坐标。 在 useFrame 中根�
 ## 🛠️ Installation
 
 1. **Clone the repository:**
+
    ```bash
    git clone <repository-url>
    cd grand-luxury-interactive-christmas-tree
    ```
 
 2. **Install dependencies:**
+
    ```bash
    npm install
    ```
 
 3. **Run the development server:**
+
    ```bash
    npm run dev
    ```
-   
+
    > 📝 Note: Local dev mode uses localStorage for sharing (works in same browser only)
    > For full cloud sharing, see step 4
 
 4. **Configure Cloudflare (Optional - for cloud sharing):**
+
    - Follow the detailed guide in `cloudflare-setup.md`
    - Copy `env.example` to `.env.local` and fill in your Cloudflare credentials
    - Use `npm run dev:vercel` to test with full Vercel environment
@@ -46,16 +50,17 @@ TargetPosition：构成树木圆锥形状的目标坐标。 在 useFrame 中根�
    - Allow camera access for gesture control
    - Click "上传照片" to upload your photos
 
-
 ## 🎯 Usage
 
 ### Photo Upload & Sharing
 
 1. **Upload Photos:**
+
    - Click "上传照片" button to select up to 22 images
    - Photos will appear as polaroids on the Christmas tree
 
 2. **Generate Share Link:**
+
    - After uploading photos, click "生成分享链接"
    - Wait 2-3 seconds for the upload to complete
    - Copy the generated link and share with friends
@@ -78,6 +83,7 @@ TargetPosition：构成树木圆锥形状的目标坐标。 在 useFrame 中根�
 ### Mouse Controls
 
 When no hand is detected, you can:
+
 - **Click and drag** to rotate the view
 - **Scroll** to zoom in/out
 - **Right-click and drag** to pan (disabled by default)
@@ -85,6 +91,7 @@ When no hand is detected, you can:
 ## 🏗️ Tech Stack
 
 ### Frontend
+
 - React 19 with TypeScript
 - React Three Fiber (R3F) for 3D rendering
 - Three.js for WebGL graphics
@@ -94,12 +101,14 @@ When no hand is detected, you can:
 - Tailwind CSS for styling
 
 ### Backend (Photo Sharing)
+
 - Vercel Serverless Functions
 - Cloudflare R2 (S3-compatible object storage)
 - Cloudflare KV (key-value storage)
 - AWS SDK S3 Client for R2 integration
 
 ### Features
+
 - Hand gesture control via webcam
 - Dynamic state transitions (CHAOS ↔ FORMED)
 - Photo upload and cloud sharing
