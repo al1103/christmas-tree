@@ -6,13 +6,52 @@ interface SnowProps {
   count?: number;
 }
 
-export const Snow: React.FC<SnowProps> = ({ count = 2000 }) => {
+// Vertex shader for GPU-based snow animation
+const snowVertexShader = `
+  uniform float uTime;
+  attribute float aSpeed;
+  attribute float aOffset;
+  
+  varying float vAlpha;
+  
+  void main() {
+    vec3 pos = position;
+    
+    // Animate Y position based on time (falling)
+    float fall = mod(pos.y - uTime * aSpeed * 2.0, 30.0) - 5.0;
+    pos.y = fall;
+    
+    // Gentle horizontal sway
+    pos.x += sin(uTime + aOffset) * 0.3;
+    pos.z += cos(uTime * 0.7 + aOffset * 0.5) * 0.3;
+    
+    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+    gl_PointSize = (3.0 + aSpeed) * (15.0 / -mvPosition.z);
+    gl_Position = projectionMatrix * mvPosition;
+    
+    vAlpha = 0.6 + aSpeed * 0.2;
+  }
+`;
+
+const snowFragmentShader = `
+  varying float vAlpha;
+  
+  void main() {
+    float r = distance(gl_PointCoord, vec2(0.5));
+    if (r > 0.5) discard;
+    
+    float glow = 1.0 - r * 2.0;
+    gl_FragColor = vec4(1.0, 1.0, 1.0, vAlpha * glow);
+  }
+`;
+
+export const Snow: React.FC<SnowProps> = ({ count = 500 }) => {
   const meshRef = useRef<THREE.Points>(null);
 
-  const { positions, velocities, sizes } = useMemo(() => {
+  const { positions, speeds, offsets } = useMemo(() => {
     const pos = new Float32Array(count * 3);
-    const vel = new Float32Array(count);
-    const siz = new Float32Array(count);
+    const spd = new Float32Array(count);
+    const off = new Float32Array(count);
 
     for (let i = 0; i < count; i++) {
       // Random positions in a cylinder around the tree
@@ -24,37 +63,27 @@ export const Snow: React.FC<SnowProps> = ({ count = 2000 }) => {
       pos[i * 3 + 2] = Math.sin(angle) * radius * Math.random();
 
       // Random fall speeds
-      vel[i] = 0.5 + Math.random() * 1.5;
+      spd[i] = 0.3 + Math.random() * 0.7;
 
-      // Random sizes
-      siz[i] = 0.5 + Math.random() * 1.5;
+      // Random offset for sway
+      off[i] = Math.random() * Math.PI * 2;
     }
 
-    return { positions: pos, velocities: vel, sizes: siz };
+    return { positions: pos, speeds: spd, offsets: off };
   }, [count]);
 
-  useFrame((state, delta) => {
-    if (!meshRef.current) return;
+  const uniforms = useMemo(
+    () => ({
+      uTime: { value: 0 },
+    }),
+    []
+  );
 
-    const positions = meshRef.current.geometry.attributes.position
-      .array as Float32Array;
-    const time = state.clock.elapsedTime;
-
-    for (let i = 0; i < count; i++) {
-      // Fall down
-      positions[i * 3 + 1] -= velocities[i] * delta * 2;
-
-      // Gentle horizontal sway
-      positions[i * 3] += Math.sin(time + i) * 0.01;
-      positions[i * 3 + 2] += Math.cos(time + i * 0.5) * 0.01;
-
-      // Reset if below ground
-      if (positions[i * 3 + 1] < -5) {
-        positions[i * 3 + 1] = 25;
-      }
+  useFrame((state) => {
+    if (meshRef.current) {
+      const material = meshRef.current.material as THREE.ShaderMaterial;
+      material.uniforms.uTime.value = state.clock.elapsedTime;
     }
-
-    meshRef.current.geometry.attributes.position.needsUpdate = true;
   });
 
   return (
@@ -67,18 +96,24 @@ export const Snow: React.FC<SnowProps> = ({ count = 2000 }) => {
           itemSize={3}
         />
         <bufferAttribute
-          attach="attributes-size"
+          attach="attributes-aSpeed"
           count={count}
-          array={sizes}
+          array={speeds}
+          itemSize={1}
+        />
+        <bufferAttribute
+          attach="attributes-aOffset"
+          count={count}
+          array={offsets}
           itemSize={1}
         />
       </bufferGeometry>
-      <pointsMaterial
-        size={0.15}
-        color="#ffffff"
+      {/* @ts-ignore */}
+      <shaderMaterial
+        vertexShader={snowVertexShader}
+        fragmentShader={snowFragmentShader}
+        uniforms={uniforms}
         transparent
-        opacity={0.8}
-        sizeAttenuation
         depthWrite={false}
         blending={THREE.AdditiveBlending}
       />

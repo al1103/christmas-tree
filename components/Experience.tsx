@@ -23,6 +23,12 @@ const isMobile =
   ) ||
     window.innerWidth < 768);
 
+// Detect low-spec PC (less than 8 logical cores or small screen)
+const isLowSpecPC =
+  typeof window !== "undefined" &&
+  !isMobile &&
+  (navigator.hardwareConcurrency <= 4 || window.innerWidth < 1400);
+
 interface ExperienceProps {
   mode: TreeMode;
   handPosition: { x: number; y: number; detected: boolean };
@@ -126,20 +132,20 @@ export const Experience: React.FC<ExperienceProps> = ({
       {/* Golden accent light */}
       <pointLight position={[-10, 8, -10]} intensity={1.5} color="#D4AF37" />
 
-      {/* Extra lights only on PC for performance */}
-      {!isMobile && (
+      {/* Extra lights only on high-spec PC for performance */}
+      {!isMobile && !isLowSpecPC && (
         <>
           <pointLight
             position={[8, 3, 5]}
-            intensity={1}
+            intensity={0.8}
             color="#ff3333"
-            distance={15}
+            distance={12}
           />
           <pointLight
             position={[-8, 5, 5]}
-            intensity={1}
+            intensity={0.8}
             color="#33ff33"
-            distance={15}
+            distance={12}
           />
           <pointLight
             position={[0, 2, -8]}
@@ -201,11 +207,17 @@ export const Experience: React.FC<ExperienceProps> = ({
       )}
 
       {/* Snow falling - optimized for performance */}
-      <Snow count={isMobile ? 300 : 600} />
+      <Snow count={isMobile ? 200 : isLowSpecPC ? 300 : 500} />
 
       <group position={[0, -5, 0]}>
-        <Foliage mode={mode} count={isMobile ? 4000 : 10000} />
-        <Ornaments mode={mode} count={isMobile ? 250 : 500} />
+        <Foliage
+          mode={mode}
+          count={isMobile ? 3000 : isLowSpecPC ? 5000 : 8000}
+        />
+        <Ornaments
+          mode={mode}
+          count={isMobile ? 150 : isLowSpecPC ? 200 : 350}
+        />
         <Polaroids
           mode={mode}
           uploadedPhotos={uploadedPhotos}
@@ -214,25 +226,27 @@ export const Experience: React.FC<ExperienceProps> = ({
         />
         <TreeStar mode={mode} />
 
-        {/* Floor Reflections */}
-        <ContactShadows
-          opacity={0.8}
-          scale={35}
-          blur={2.5}
-          far={5}
-          color="#000000"
-        />
+        {/* Floor Reflections - disabled on low-spec for performance */}
+        {!isLowSpecPC && (
+          <ContactShadows
+            opacity={0.6}
+            scale={30}
+            blur={2}
+            far={4}
+            color="#000000"
+          />
+        )}
       </group>
 
       {/* Post-processing effects - optimized for performance */}
-      <EffectComposer enableNormalPass={false}>
+      <EffectComposer enabled={!isMobile} enableNormalPass={false}>
         <Bloom
-          luminanceThreshold={0.7}
+          luminanceThreshold={isLowSpecPC ? 0.8 : 0.7}
           mipmapBlur
-          intensity={isMobile ? 1.2 : 2.0}
-          radius={0.6}
+          intensity={isLowSpecPC ? 1.0 : 1.5}
+          radius={isLowSpecPC ? 0.4 : 0.5}
         />
-        <Vignette eskil={false} offset={0.1} darkness={0.5} />
+        {!isLowSpecPC && <Vignette eskil={false} offset={0.1} darkness={0.4} />}
       </EffectComposer>
     </>
   );
