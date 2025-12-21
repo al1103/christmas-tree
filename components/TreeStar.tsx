@@ -1,7 +1,7 @@
-import React, { useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
-import { TreeMode } from '../types';
+import React, { useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import * as THREE from "three";
+import { TreeMode } from "../types";
 
 interface TreeStarProps {
   mode: TreeMode;
@@ -81,28 +81,61 @@ export const TreeStar: React.FC<TreeStarProps> = ({ mode }) => {
 
   return (
     <group ref={starRef} position={[0, 13, 0]}>
-      {/* Star Mesh */}
+      {/* Main Star Mesh */}
       <mesh rotation={[0, 0, 0]}>
         <extrudeGeometry args={[starShape, extrudeSettings]} />
         <meshStandardMaterial
-          color="#D4AF37"
+          color="#FFD700"
           emissive="#FFD700"
-          emissiveIntensity={2}
-          metalness={0.9}
-          roughness={0.1}
+          emissiveIntensity={3}
+          metalness={0.95}
+          roughness={0.05}
           toneMapped={false}
         />
       </mesh>
 
-      {/* Point Light for glow effect */}
+      {/* Inner glow core */}
+      <mesh>
+        <sphereGeometry args={[0.4, 16, 16]} />
+        <meshBasicMaterial color="#FFFFFF" transparent opacity={0.9} />
+      </mesh>
+
+      {/* Outer glow sphere */}
+      <mesh>
+        <sphereGeometry args={[1.2, 16, 16]} />
+        <meshBasicMaterial
+          color="#FFD700"
+          transparent
+          opacity={0.3}
+          side={THREE.BackSide}
+        />
+      </mesh>
+
+      {/* Light rays - vertical and horizontal beams */}
+      {[0, 45, 90, 135].map((angle, i) => (
+        <mesh key={i} rotation={[0, 0, (angle * Math.PI) / 180]}>
+          <planeGeometry args={[0.1, 3]} />
+          <meshBasicMaterial
+            color="#FFD700"
+            transparent
+            opacity={0.5}
+            side={THREE.DoubleSide}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      ))}
+
+      {/* Point Light for main glow effect */}
       <pointLight
         ref={lightRef}
         color="#FFD700"
-        intensity={2}
-        distance={5}
+        intensity={4}
+        distance={10}
         decay={2}
       />
+
+      {/* Secondary warm light */}
+      <pointLight color="#FFA500" intensity={2} distance={6} decay={2} />
     </group>
   );
 };
-

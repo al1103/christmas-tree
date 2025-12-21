@@ -1,14 +1,19 @@
-
-import React, { useRef } from 'react';
-import { Environment, OrbitControls, ContactShadows } from '@react-three/drei';
-import { EffectComposer, Bloom, Vignette, Noise } from '@react-three/postprocessing';
-import { BlendFunction } from 'postprocessing';
-import { useFrame } from '@react-three/fiber';
-import { Foliage } from './Foliage';
-import { Ornaments } from './Ornaments';
-import { Polaroids } from './Polaroids';
-import { TreeStar } from './TreeStar';
-import { TreeMode } from '../types';
+import React, { useRef } from "react";
+import { Environment, OrbitControls, ContactShadows } from "@react-three/drei";
+import {
+  EffectComposer,
+  Bloom,
+  Vignette,
+  Noise,
+} from "@react-three/postprocessing";
+import { BlendFunction } from "postprocessing";
+import { useFrame } from "@react-three/fiber";
+import { Foliage } from "./Foliage";
+import { Ornaments } from "./Ornaments";
+import { Polaroids } from "./Polaroids";
+import { TreeStar } from "./TreeStar";
+import { Snow } from "./Snow";
+import { TreeMode } from "../types";
 
 interface ExperienceProps {
   mode: TreeMode;
@@ -18,67 +23,67 @@ interface ExperienceProps {
   onClosestPhotoChange?: (photoUrl: string | null) => void;
 }
 
-export const Experience: React.FC<ExperienceProps> = ({ mode, handPosition, uploadedPhotos, twoHandsDetected, onClosestPhotoChange }) => {
+export const Experience: React.FC<ExperienceProps> = ({
+  mode,
+  handPosition,
+  uploadedPhotos,
+  twoHandsDetected,
+  onClosestPhotoChange,
+}) => {
   const controlsRef = useRef<any>(null);
 
-  // Update camera rotation based on hand position
-  useFrame((_, delta) => {
-    if (controlsRef.current && handPosition.detected) {
+  // Simple horizontal rotation based on hand X position
+  // Also zoom out when in CHAOS mode (5 fingers open)
+  useFrame(() => {
+    if (controlsRef.current) {
       const controls = controlsRef.current;
-      
-      // Map hand position to spherical coordinates
-      // x: 0 (left) to 1 (right) -> azimuthal angle (horizontal rotation)
-      // y: 0 (top) to 1 (bottom) -> polar angle (vertical tilt)
-      
-      // Target azimuthal angle: increased range for larger rotation
-      const targetAzimuth = (handPosition.x - 0.5) * Math.PI * 3; // Increased from 2 to 3
-      
-      // Adjust Y mapping so natural hand position gives best view
-      // Offset Y so hand at 0.4-0.5 range gives centered view
-      const adjustedY = (handPosition.y - 0.2) * 2.0; // Increased sensitivity from 1.5 to 2.0
-      const clampedY = Math.max(0, Math.min(1, adjustedY)); // Clamp to 0-1
-      
-      // Target polar angle: PI/4 to PI/1.8 (constrained vertical angle)
-      const minPolar = Math.PI / 4;
-      const maxPolar = Math.PI / 1.8;
-      const targetPolar = minPolar + clampedY * (maxPolar - minPolar);
-      
-      // Get current angles
-      const currentAzimuth = controls.getAzimuthalAngle();
-      const currentPolar = controls.getPolarAngle();
-      
-      // Calculate angle differences (handle wrapping for azimuth)
-      let azimuthDiff = targetAzimuth - currentAzimuth;
-      if (azimuthDiff > Math.PI) azimuthDiff -= Math.PI * 2;
-      if (azimuthDiff < -Math.PI) azimuthDiff += Math.PI * 2;
-      
-      // Smoothly interpolate angles
-      const lerpSpeed = 8; // Increased from 5 to 8 for faster response
-      const newAzimuth = currentAzimuth + azimuthDiff * delta * lerpSpeed;
-      const newPolar = currentPolar + (targetPolar - currentPolar) * delta * lerpSpeed;
-      
-      // Calculate new camera position in spherical coordinates
-      const radius = controls.getDistance();
-      const targetY = 4; // Tree center height
-      
-      const x = radius * Math.sin(newPolar) * Math.sin(newAzimuth);
-      const y = targetY + radius * Math.cos(newPolar);
-      const z = radius * Math.sin(newPolar) * Math.cos(newAzimuth);
-      
-      // Update camera position and target
-      controls.object.position.set(x, y, z);
-      controls.target.set(0, targetY, 0);
-      controls.update();
+
+      // Zoom out when in CHAOS mode
+      const targetDistance = mode === TreeMode.CHAOS ? 35 : 25;
+      const currentDistance = controls.getDistance();
+      const distanceDiff = targetDistance - currentDistance;
+
+      if (Math.abs(distanceDiff) > 0.5) {
+        // Smoothly zoom to target distance
+        const newDistance = currentDistance + distanceDiff * 0.05;
+        // Set new distance by moving camera along its direction
+        const direction = controls.object.position.clone().normalize();
+        controls.object.position.copy(direction.multiplyScalar(newDistance));
+        controls.update();
+      }
+
+      // Handle horizontal rotation based on hand position
+      if (handPosition.detected) {
+        // Calculate target azimuth based on hand X position
+        // Hand at center (0.5) = no rotation, left/right = rotate
+        const targetAzimuth = (handPosition.x - 0.5) * Math.PI * 1.5;
+
+        // Smoothly rotate to target
+        const currentAzimuth = controls.getAzimuthalAngle();
+        let diff = targetAzimuth - currentAzimuth;
+
+        // Handle angle wrapping
+        if (diff > Math.PI) diff -= Math.PI * 2;
+        if (diff < -Math.PI) diff += Math.PI * 2;
+
+        // Only rotate if difference is significant
+        if (Math.abs(diff) > 0.01) {
+          // Manually rotate the azimuth - faster speed
+          controls.setAzimuthalAngle(currentAzimuth + diff * 0.15);
+          controls.update();
+        }
+      }
     }
   });
+
   return (
     <>
-      <OrbitControls 
+      <OrbitControls
         ref={controlsRef}
-        enablePan={false} 
-        minPolarAngle={Math.PI / 4} 
+        enablePan={false}
+        minPolarAngle={Math.PI / 4}
         maxPolarAngle={Math.PI / 1.8}
-        minDistance={10}
+        minDistance={25}
         maxDistance={30}
         enableDamping
         dampingFactor={0.05}
@@ -87,43 +92,87 @@ export const Experience: React.FC<ExperienceProps> = ({ mode, handPosition, uplo
 
       {/* Lighting Setup for Maximum Luxury */}
       <Environment preset="lobby" background={false} blur={0.8} />
-      
-      <ambientLight intensity={0.2} color="#004422" />
-      <spotLight 
-        position={[10, 20, 10]} 
-        angle={0.2} 
-        penumbra={1} 
-        intensity={2} 
-        color="#fff5cc" 
-        castShadow 
+
+      <ambientLight intensity={0.5} color="#ffffff" />
+
+      {/* Main spotlight */}
+      <spotLight
+        position={[10, 25, 10]}
+        angle={0.3}
+        penumbra={1}
+        intensity={3}
+        color="#fff5cc"
+        castShadow
       />
-      <pointLight position={[-10, 5, -10]} intensity={1} color="#D4AF37" />
+
+      {/* Golden accent light */}
+      <pointLight position={[-10, 8, -10]} intensity={2} color="#D4AF37" />
+
+      {/* Christmas colored lights */}
+      <pointLight
+        position={[8, 3, 5]}
+        intensity={1.5}
+        color="#ff3333"
+        distance={15}
+      />
+      <pointLight
+        position={[-8, 5, 5]}
+        intensity={1.5}
+        color="#33ff33"
+        distance={15}
+      />
+      <pointLight
+        position={[0, 2, -8]}
+        intensity={1.5}
+        color="#ff6600"
+        distance={15}
+      />
+      <pointLight
+        position={[5, 8, -5]}
+        intensity={1}
+        color="#ff69b4"
+        distance={12}
+      />
+      <pointLight
+        position={[-5, 10, 3]}
+        intensity={1}
+        color="#00ffff"
+        distance={12}
+      />
+
+      {/* Snow falling */}
+      <Snow count={1500} />
 
       <group position={[0, -5, 0]}>
-        <Foliage mode={mode} count={12000} />
-        <Ornaments mode={mode} count={600} />
-        <Polaroids mode={mode} uploadedPhotos={uploadedPhotos} twoHandsDetected={twoHandsDetected} onClosestPhotoChange={onClosestPhotoChange} />
+        <Foliage mode={mode} count={15000} />
+        <Ornaments mode={mode} count={800} />
+        <Polaroids
+          mode={mode}
+          uploadedPhotos={uploadedPhotos}
+          twoHandsDetected={twoHandsDetected}
+          onClosestPhotoChange={onClosestPhotoChange}
+        />
         <TreeStar mode={mode} />
-        
+
         {/* Floor Reflections */}
-        <ContactShadows 
-          opacity={0.7} 
-          scale={30} 
-          blur={2} 
-          far={4.5} 
-          color="#000000" 
+        <ContactShadows
+          opacity={0.8}
+          scale={35}
+          blur={2.5}
+          far={5}
+          color="#000000"
         />
       </group>
 
       <EffectComposer enableNormalPass={false}>
-        <Bloom 
-          luminanceThreshold={0.8} 
-          mipmapBlur 
-          intensity={1.5} 
-          radius={0.6}
+        <Bloom
+          luminanceThreshold={0.6}
+          mipmapBlur
+          intensity={2.5}
+          radius={0.8}
         />
-        <Vignette eskil={false} offset={0.1} darkness={0.7} />
-        <Noise opacity={0.02} blendFunction={BlendFunction.OVERLAY} />
+        <Vignette eskil={false} offset={0.1} darkness={0.6} />
+        <Noise opacity={0.015} blendFunction={BlendFunction.OVERLAY} />
       </EffectComposer>
     </>
   );
