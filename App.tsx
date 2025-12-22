@@ -99,23 +99,42 @@ export default function App() {
         return;
       }
 
-      // Wait for video to be ready
-      if (video.readyState < 2) {
-        console.log("Recording: Waiting for video to be ready...");
-        await new Promise<void>((resolve) => {
+      // Wait for video to be ready with valid dimensions
+      const waitForVideo = (): Promise<void> => {
+        return new Promise((resolve) => {
           const checkReady = () => {
-            if (video.readyState >= 2) {
+            if (
+              video.readyState >= 2 &&
+              video.videoWidth > 0 &&
+              video.videoHeight > 0
+            ) {
               resolve();
             } else {
-              setTimeout(checkReady, 100);
+              console.log(
+                `Recording: Waiting... readyState=${video.readyState}, size=${video.videoWidth}x${video.videoHeight}`
+              );
+              setTimeout(checkReady, 200);
             }
           };
           checkReady();
         });
-      }
+      };
 
-      const videoWidth = video.videoWidth || 640;
-      const videoHeight = video.videoHeight || 480;
+      // Wait up to 10 seconds for video to be ready
+      await Promise.race([
+        waitForVideo(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Video timeout")), 10000)
+        ),
+      ]);
+
+      const videoWidth = video.videoWidth;
+      const videoHeight = video.videoHeight;
+
+      if (videoWidth === 0 || videoHeight === 0) {
+        console.log("Recording: Video has invalid dimensions");
+        return;
+      }
       console.log(
         `Recording: Starting - Video size: ${videoWidth}x${videoHeight}`
       );

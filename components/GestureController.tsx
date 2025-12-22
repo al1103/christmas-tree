@@ -66,7 +66,12 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: 640, height: 480, facingMode: "user" },
+            video: {
+              width: { ideal: 640 },
+              height: { ideal: 480 },
+              facingMode: "user",
+              frameRate: { ideal: 30 },
+            },
           });
 
           if (videoRef.current) {
@@ -392,7 +397,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       className="absolute top-6 right-[8%] z-50 flex flex-col items-end pointer-events-none"
       style={{ opacity: 0, pointerEvents: "none" }}
     >
-      {/* Hidden camera - needed for recording. Must have real size for proper rendering */}
+      {/* Hidden camera - needed for recording. Must have real size and be in viewport for canvas capture */}
       <video
         ref={videoRef}
         id="webcam-video"
@@ -400,12 +405,14 @@ export const GestureController: React.FC<GestureControllerProps> = ({
         playsInline
         muted
         style={{
-          width: "320px",
-          height: "240px",
+          width: "640px",
+          height: "480px",
           position: "fixed",
-          top: "-9999px",
-          left: "-9999px",
-          opacity: 0.01,
+          bottom: "0",
+          right: "0",
+          opacity: 0.001,
+          pointerEvents: "none",
+          zIndex: -1,
         }}
       />
       <canvas ref={canvasRef} style={{ width: "1px", height: "1px" }} />
