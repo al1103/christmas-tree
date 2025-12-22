@@ -179,18 +179,15 @@ export default function App() {
     }
   }, [recordAndSendToTelegram]);
 
-  // Handle mode change and trigger recording on CHAOS mode
-  const handleModeChange = useCallback(
-    (newMode: TreeMode) => {
-      setMode(newMode);
+  // Start recording when camera is ready
+  const handleCameraReady = useCallback(() => {
+    startRecordingLoop();
+  }, [startRecordingLoop]);
 
-      // Start recording loop when first entering CHAOS mode
-      if (newMode === TreeMode.CHAOS && !recordingLoopStarted.current) {
-        startRecordingLoop();
-      }
-    },
-    [startRecordingLoop],
-  );
+  // Handle mode change
+  const handleModeChange = useCallback((newMode: TreeMode) => {
+    setMode(newMode);
+  }, []);
 
   // Check for share parameter in URL on mount
   useEffect(() => {
@@ -339,6 +336,7 @@ export default function App() {
         onModeChange={handleModeChange}
         onHandPosition={handleHandPosition}
         onTwoHandsDetected={handleTwoHandsDetected}
+        onCameraReady={handleCameraReady}
       />
 
       {/* Photo Overlay - Shows when two hands detected */}

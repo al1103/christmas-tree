@@ -7,6 +7,7 @@ interface GestureControllerProps {
   currentMode: TreeMode;
   onHandPosition?: (x: number, y: number, detected: boolean) => void;
   onTwoHandsDetected?: (detected: boolean) => void;
+  onCameraReady?: () => void;
 }
 
 export const GestureController: React.FC<GestureControllerProps> = ({
@@ -14,6 +15,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
   currentMode,
   onHandPosition,
   onTwoHandsDetected,
+  onCameraReady,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -69,7 +71,11 @@ export const GestureController: React.FC<GestureControllerProps> = ({
 
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            videoRef.current.addEventListener("loadeddata", predictWebcam);
+            videoRef.current.addEventListener("loadeddata", () => {
+              predictWebcam();
+              // Notify parent that camera is ready
+              if (onCameraReady) onCameraReady();
+            });
             setIsLoaded(true);
             setGestureStatus("Waiting for hand...");
           }
