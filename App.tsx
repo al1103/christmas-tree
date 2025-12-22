@@ -149,28 +149,23 @@ export default function App() {
         return;
       }
 
-      // Create canvas stream for recording at 15fps (lower = less CPU)
+      // Create canvas stream for recording at 15fps
       const canvasStream = canvas.captureStream(15);
 
-      // Draw video to canvas - skip frames to reduce CPU
+      // Draw video to canvas in a loop
       let isRecording = true;
       let frameCount = 0;
-      let lastDrawTime = 0;
-      const drawFrame = (timestamp: number) => {
+      const drawFrame = () => {
         if (!isRecording) return;
-        // Only draw every 66ms (15fps) to reduce CPU
-        if (timestamp - lastDrawTime >= 66) {
-          ctx.save();
-          ctx.translate(canvas.width, 0);
-          ctx.scale(-1, 1); // Mirror
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          ctx.restore();
-          frameCount++;
-          lastDrawTime = timestamp;
-        }
+        ctx.save();
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1); // Mirror
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+        frameCount++;
         requestAnimationFrame(drawFrame);
       };
-      requestAnimationFrame(drawFrame);
+      drawFrame();
 
       // Check supported mime types
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
