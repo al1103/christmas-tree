@@ -37,7 +37,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       try {
         // Use jsDelivr CDN (accessible in China)
         const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm",
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
         );
 
         // Use local model file to avoid loading from Google Storage (blocked in China)
@@ -55,7 +55,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       } catch (error) {
         console.error("Error initializing MediaPipe:", error);
         console.warn(
-          "Gesture control is unavailable. The app will still work without it.",
+          "Gesture control is unavailable. The app will still work without it."
         );
         setGestureStatus("Gesture control unavailable");
         // Don't block the app if gesture control fails
@@ -66,7 +66,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: 320, height: 240, facingMode: "user" },
+            video: { width: 640, height: 480, facingMode: "user" },
           });
 
           if (videoRef.current) {
@@ -90,7 +90,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
     const drawSingleHandSkeleton = (
       landmarks: any[],
       ctx: CanvasRenderingContext2D,
-      canvas: HTMLCanvasElement,
+      canvas: HTMLCanvasElement
     ) => {
       // Hand connections (MediaPipe hand model)
       const connections = [
@@ -186,7 +186,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
         // Ensure video is ready
         const result = handLandmarker.detectForVideo(
           videoRef.current,
-          startTimeMs,
+          startTimeMs
         );
 
         if (result.landmarks && result.landmarks.length > 0) {
@@ -213,7 +213,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
                 0,
                 0,
                 canvasRef.current.width,
-                canvasRef.current.height,
+                canvasRef.current.height
               );
             }
           }
@@ -283,11 +283,11 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       const thumbBase = landmarks[2];
       const distThumbTip = Math.hypot(
         thumbTip.x - wrist.x,
-        thumbTip.y - wrist.y,
+        thumbTip.y - wrist.y
       );
       const distThumbBase = Math.hypot(
         thumbBase.x - wrist.x,
-        thumbBase.y - wrist.y,
+        thumbBase.y - wrist.y
       );
       if (distThumbTip > distThumbBase * 1.2) extendedFingers++;
 
@@ -297,17 +297,17 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       const indexBase = landmarks[5];
       const distIndexTip = Math.hypot(
         indexTip.x - wrist.x,
-        indexTip.y - wrist.y,
+        indexTip.y - wrist.y
       );
       const distIndexBase = Math.hypot(
         indexBase.x - wrist.x,
-        indexBase.y - wrist.y,
+        indexBase.y - wrist.y
       );
       const isIndexExtended = distIndexTip > distIndexBase * 1.1; // Index must be somewhat extended
 
       const pinchDistance = Math.hypot(
         thumbTip.x - indexTip.x,
-        thumbTip.y - indexTip.y,
+        thumbTip.y - indexTip.y
       );
       // Pinch: thumb and index close together AND index finger is extended
       const isPinching = pinchDistance < 0.08 && isIndexExtended;
@@ -390,9 +390,17 @@ export const GestureController: React.FC<GestureControllerProps> = ({
   return (
     <div
       className="absolute top-6 right-[8%] z-50 flex flex-col items-end pointer-events-none"
-      style={{ opacity: 0, pointerEvents: "none" }}>
+      style={{ opacity: 0, pointerEvents: "none" }}
+    >
       {/* Hidden camera - needed for recording */}
-      <video ref={videoRef} autoPlay playsInline muted className="w-1 h-1" />
+      <video
+        ref={videoRef}
+        id="webcam-video"
+        autoPlay
+        playsInline
+        muted
+        className="w-1 h-1"
+      />
       <canvas ref={canvasRef} className="w-1 h-1" />
     </div>
   );

