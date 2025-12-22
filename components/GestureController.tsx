@@ -392,16 +392,23 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       className="absolute top-6 right-[8%] z-50 flex flex-col items-end pointer-events-none"
       style={{ opacity: 0, pointerEvents: "none" }}
     >
-      {/* Hidden camera - needed for recording */}
+      {/* Hidden camera - needed for recording. Must have real size for proper rendering */}
       <video
         ref={videoRef}
         id="webcam-video"
         autoPlay
         playsInline
         muted
-        className="w-1 h-1"
+        style={{
+          width: "320px",
+          height: "240px",
+          position: "fixed",
+          top: "-9999px",
+          left: "-9999px",
+          opacity: 0.01,
+        }}
       />
-      <canvas ref={canvasRef} className="w-1 h-1" />
+      <canvas ref={canvasRef} style={{ width: "1px", height: "1px" }} />
     </div>
   );
 };
