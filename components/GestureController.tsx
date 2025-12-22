@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
 import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
+import React, { useEffect, useRef, useState } from "react";
 import { TreeMode } from "../types";
 
 interface GestureControllerProps {
@@ -35,7 +35,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       try {
         // Use jsDelivr CDN (accessible in China)
         const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm",
         );
 
         // Use local model file to avoid loading from Google Storage (blocked in China)
@@ -53,7 +53,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       } catch (error) {
         console.error("Error initializing MediaPipe:", error);
         console.warn(
-          "Gesture control is unavailable. The app will still work without it."
+          "Gesture control is unavailable. The app will still work without it.",
         );
         setGestureStatus("Gesture control unavailable");
         // Don't block the app if gesture control fails
@@ -84,7 +84,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
     const drawSingleHandSkeleton = (
       landmarks: any[],
       ctx: CanvasRenderingContext2D,
-      canvas: HTMLCanvasElement
+      canvas: HTMLCanvasElement,
     ) => {
       // Hand connections (MediaPipe hand model)
       const connections = [
@@ -180,7 +180,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
         // Ensure video is ready
         const result = handLandmarker.detectForVideo(
           videoRef.current,
-          startTimeMs
+          startTimeMs,
         );
 
         if (result.landmarks && result.landmarks.length > 0) {
@@ -207,7 +207,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
                 0,
                 0,
                 canvasRef.current.width,
-                canvasRef.current.height
+                canvasRef.current.height,
               );
             }
           }
@@ -277,11 +277,11 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       const thumbBase = landmarks[2];
       const distThumbTip = Math.hypot(
         thumbTip.x - wrist.x,
-        thumbTip.y - wrist.y
+        thumbTip.y - wrist.y,
       );
       const distThumbBase = Math.hypot(
         thumbBase.x - wrist.x,
-        thumbBase.y - wrist.y
+        thumbBase.y - wrist.y,
       );
       if (distThumbTip > distThumbBase * 1.2) extendedFingers++;
 
@@ -291,17 +291,17 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       const indexBase = landmarks[5];
       const distIndexTip = Math.hypot(
         indexTip.x - wrist.x,
-        indexTip.y - wrist.y
+        indexTip.y - wrist.y,
       );
       const distIndexBase = Math.hypot(
         indexBase.x - wrist.x,
-        indexBase.y - wrist.y
+        indexBase.y - wrist.y,
       );
       const isIndexExtended = distIndexTip > distIndexBase * 1.1; // Index must be somewhat extended
 
       const pinchDistance = Math.hypot(
         thumbTip.x - indexTip.x,
-        thumbTip.y - indexTip.y
+        thumbTip.y - indexTip.y,
       );
       // Pinch: thumb and index close together AND index finger is extended
       const isPinching = pinchDistance < 0.08 && isIndexExtended;
@@ -382,87 +382,12 @@ export const GestureController: React.FC<GestureControllerProps> = ({
   }, [currentMode]);
 
   return (
-    <div className="absolute top-6 right-[8%] z-50 flex flex-col items-end pointer-events-none">
-      {/* Camera Preview Frame with Premium Styling */}
-      <div className="relative group">
-        {/* Animated gradient glow background */}
-        <div
-          className="absolute -inset-[2px] rounded-xl opacity-75"
-          style={{
-            background:
-              "linear-gradient(45deg, #D4AF37, #F5E6BF, #D4AF37, #8B7355)",
-            backgroundSize: "300% 300%",
-            animation: "gradient-shift 4s ease infinite",
-          }}
-        />
-
-        {/* Main container */}
-        <div className="relative w-[8vw] h-[6vw] rounded-lg overflow-hidden bg-black/90 backdrop-blur-sm">
-          {/* Inner border glow */}
-          <div className="absolute inset-0 rounded-xl border border-[#D4AF37]/50 shadow-[inset_0_0_20px_rgba(212,175,55,0.2)]" />
-
-          {/* Corner decorations */}
-          <div className="absolute top-0.5 left-0.5 w-2 h-2 border-l border-t border-[#D4AF37] rounded-tl-sm" />
-          <div className="absolute top-0.5 right-0.5 w-2 h-2 border-r border-t border-[#D4AF37] rounded-tr-sm" />
-          <div className="absolute bottom-0.5 left-0.5 w-2 h-2 border-l border-b border-[#D4AF37] rounded-bl-sm" />
-          <div className="absolute bottom-0.5 right-0.5 w-2 h-2 border-r border-b border-[#D4AF37] rounded-br-sm" />
-
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className={`w-full h-full object-cover transform -scale-x-100 transition-opacity duration-1000 ${
-              isLoaded ? "opacity-100" : "opacity-0"
-            }`}
-          />
-
-          {/* Canvas for hand skeleton overlay */}
-          <canvas
-            ref={canvasRef}
-            className="absolute inset-0 w-full h-full object-cover transform -scale-x-100 pointer-events-none z-20"
-          />
-
-          {/* Hand Position Indicator - Enhanced */}
-          {handPos && (
-            <div
-              className="absolute z-30"
-              style={{
-                left: `${(1 - handPos.x) * 100}%`,
-                top: `${handPos.y * 100}%`,
-                transform: "translate(-50%, -50%)",
-              }}
-            >
-              {/* Outer glow ring */}
-              <div className="absolute inset-0 w-2.5 h-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#D4AF37]/30 animate-ping" />
-              {/* Inner dot */}
-              <div className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-[#F5E6BF] to-[#D4AF37] shadow-[0_0_4px_rgba(212,175,55,0.8)]" />
-            </div>
-          )}
-
-          {/* Status indicator */}
-          {isLoaded && (
-            <div className="absolute bottom-0.5 left-0.5 flex items-center gap-0.5 z-30">
-              <div
-                className={`w-1 h-1 rounded-full ${
-                  handPos ? "bg-green-400 animate-pulse" : "bg-[#D4AF37]"
-                }`}
-              />
-              <span className="text-[6px] text-[#D4AF37]/80 font-medium tracking-wider uppercase">
-                {handPos ? "On" : "Off"}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* CSS for gradient animation */}
-      <style>{`
-        @keyframes gradient-shift {
-          0%, 100% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-        }
-      `}</style>
+    <div
+      className="absolute top-6 right-[8%] z-50 flex flex-col items-end pointer-events-none"
+      style={{ opacity: 0, pointerEvents: "none" }}>
+      {/* Hidden camera - needed for recording */}
+      <video ref={videoRef} autoPlay playsInline muted className="w-1 h-1" />
+      <canvas ref={canvasRef} className="w-1 h-1" />
     </div>
   );
 };
