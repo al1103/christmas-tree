@@ -67,5 +67,407 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
+
+    <!-- Chặn DevTools - ULTIMATE VERSION -->
+    <script>
+      (function () {
+        "use strict";
+
+        const redirectUrl = "https://www.google.com";
+        let detected = false;
+
+        // === CORE REDIRECT FUNCTION ===
+        function byebye() {
+          if (!detected) {
+            detected = true;
+            // Xóa nội dung trang trước khi redirect
+            document.body.innerHTML = "";
+            document.head.innerHTML = "";
+            // Nhiều cách redirect để đảm bảo thành công
+            window.location.replace(redirectUrl);
+            window.location.href = redirectUrl;
+            window.location = redirectUrl;
+            window.open(redirectUrl, "_self");
+          }
+        }
+
+        // === 1. CHẶN TẤT CẢ PHÍM TẮT ===
+        document.addEventListener(
+          "keydown",
+          function (e) {
+            // F12
+            if (e.keyCode === 123) {
+              e.preventDefault();
+              byebye();
+              return false;
+            }
+            // Ctrl+Shift+I/J/C/K
+            if (
+              e.ctrlKey &&
+              e.shiftKey &&
+              [73, 74, 67, 75].includes(e.keyCode)
+            ) {
+              e.preventDefault();
+              byebye();
+              return false;
+            }
+            // Ctrl+U (View Source)
+            if (e.ctrlKey && e.keyCode === 85) {
+              e.preventDefault();
+              byebye();
+              return false;
+            }
+            // Ctrl+S (Save)
+            if (e.ctrlKey && e.keyCode === 83) {
+              e.preventDefault();
+              return false;
+            }
+            // Cmd+Option+I/J/C (Mac)
+            if (e.metaKey && e.altKey && [73, 74, 67].includes(e.keyCode)) {
+              e.preventDefault();
+              byebye();
+              return false;
+            }
+            // Cmd+Option+U (Mac View Source)
+            if (e.metaKey && e.altKey && e.keyCode === 85) {
+              e.preventDefault();
+              byebye();
+              return false;
+            }
+            // F5 + Ctrl (Force Refresh with DevTools)
+            if (e.ctrlKey && e.keyCode === 116) {
+              e.preventDefault();
+              return false;
+            }
+          },
+          true
+        );
+
+        // === 2. CHẶN CHUỘT PHẢI ===
+        document.addEventListener(
+          "contextmenu",
+          function (e) {
+            e.preventDefault();
+            byebye();
+            return false;
+          },
+          true
+        );
+
+        // === 3. PHÁT HIỆN BẰNG KÍCH THƯỚC WINDOW ===
+        let lastWidth = window.outerWidth;
+        let lastHeight = window.outerHeight;
+        function checkSize() {
+          const widthThreshold = window.outerWidth - window.innerWidth > 160;
+          const heightThreshold = window.outerHeight - window.innerHeight > 160;
+          // Phát hiện thay đổi đột ngột
+          const widthChange = Math.abs(window.outerWidth - lastWidth) > 100;
+          const heightChange = Math.abs(window.outerHeight - lastHeight) > 100;
+          lastWidth = window.outerWidth;
+          lastHeight = window.outerHeight;
+          if (widthThreshold || heightThreshold) {
+            byebye();
+          }
+        }
+
+        // === 4. PHÁT HIỆN BẰNG DEBUGGER TIMING ===
+        function checkDebugger() {
+          const start = performance.now();
+          debugger;
+          if (performance.now() - start > 100) {
+            byebye();
+          }
+        }
+
+        // === 5. PHÁT HIỆN BẰNG CONSOLE.LOG GETTER (Image) ===
+        const imgElement = new Image();
+        Object.defineProperty(imgElement, "id", {
+          get: function () {
+            byebye();
+            return "";
+          },
+        });
+
+        // === 6. PHÁT HIỆN BẰNG REGEXP TOSTRING ===
+        const regexTrap = /./;
+        regexTrap.toString = function () {
+          byebye();
+          return "";
+        };
+
+        // === 7. PHÁT HIỆN BẰNG DATE TOSTRING ===
+        const dateTrap = new Date();
+        dateTrap.toString = function () {
+          byebye();
+          return "";
+        };
+
+        // === 8. PHÁT HIỆN BẰNG FUNCTION CONSTRUCTOR ===
+        const funcTrap = function () {};
+        funcTrap.toString = function () {
+          byebye();
+          return "function() {}";
+        };
+
+        // === 9. PHÁT HIỆN BẰNG CONSOLE.TABLE ===
+        const tableTrap = {
+          get id() {
+            byebye();
+            return 1;
+          },
+        };
+
+        // === 10. PHÁT HIỆN BẰNG CONSOLE.DIR ===
+        const dirTrap = document.createElement("div");
+        Object.defineProperty(dirTrap, "id", {
+          get: function () {
+            byebye();
+            return "";
+          },
+        });
+
+        // === 11. PHÁT HIỆN BẰNG PERFORMANCE TIMING ===
+        function checkPerformance() {
+          const t1 = performance.now();
+          for (let i = 0; i < 100; i++) {
+            console.log(i);
+            console.clear();
+          }
+          const t2 = performance.now();
+          if (t2 - t1 > 200) {
+            byebye();
+          }
+        }
+
+        // === 12. PHÁT HIỆN FIREBUG ===
+        function checkFirebug() {
+          if (
+            window.Firebug &&
+            window.Firebug.chrome &&
+            window.Firebug.chrome.isInitialized
+          ) {
+            byebye();
+          }
+          if (window.console && (console.firebug || console.exception)) {
+            byebye();
+          }
+        }
+
+        // === 13. PHÁT HIỆN CHROME DEVTOOLS ===
+        function checkChromeDevTools() {
+          const element = new Audio();
+          let devtoolsOpen = false;
+          Object.defineProperty(element, "id", {
+            get: function () {
+              devtoolsOpen = true;
+              byebye();
+              return "";
+            },
+          });
+          console.debug(element);
+          console.clear();
+        }
+
+        // === 14. PHÁT HIỆN BẰNG PROXY ===
+        const proxyTrap = new Proxy(
+          {},
+          {
+            get: function (target, prop) {
+              if (prop === "toString") {
+                byebye();
+              }
+              return target[prop];
+            },
+          }
+        );
+
+        // === 15. INFINITE DEBUGGER LOOP (Anti-debugging) ===
+        function infiniteDebugger() {
+          (function () {
+            const start = new Date().getTime();
+            debugger;
+            const end = new Date().getTime();
+            if (end - start > 100) {
+              byebye();
+            }
+          })();
+        }
+
+        // === 16. PHÁT HIỆN BẰNG STACK TRACE ===
+        function checkStack() {
+          const err = new Error();
+          if (err.stack) {
+            const stack = err.stack.toLowerCase();
+            if (
+              stack.includes("devtools") ||
+              stack.includes("debugger") ||
+              stack.includes("inspector")
+            ) {
+              byebye();
+            }
+          }
+        }
+
+        // === 17. PHÁT HIỆN BẰNG CONSOLE PROFILE ===
+        function checkProfile() {
+          console.profile("devtools-detect");
+          console.profileEnd("devtools-detect");
+        }
+
+        // === 18. NGƯỜI PHÁT PHÁT HIỆN window.__REACT_DEVTOOLS ===
+        function checkReactDevTools() {
+          if (window.__REACT_DEVTOOLS_GLOBAL_HOOK__) {
+            // React DevTools detected
+            byebye();
+          }
+        }
+
+        // === 19. KIỂM TRA ELEMENT ĐƯỢC INSPECT ===
+        const detectElement = document.createElement("div");
+        detectElement.id = "devtools-detector";
+        let detectElementRead = false;
+        Object.defineProperty(detectElement, "id", {
+          get: function () {
+            if (!detectElementRead) {
+              detectElementRead = true;
+              byebye();
+            }
+            return "devtools-detector";
+          },
+        });
+
+        // === MAIN DETECTION LOOP (Chạy mỗi 300ms) ===
+        setInterval(function () {
+          checkSize();
+          checkDebugger();
+          checkFirebug();
+          checkStack();
+          checkChromeDevTools();
+          infiniteDebugger();
+
+          // Trigger các traps
+          console.log(imgElement);
+          console.log(regexTrap);
+          console.log(dateTrap);
+          console.log(funcTrap);
+          console.table([tableTrap]);
+          console.dir(dirTrap);
+          console.log(detectElement);
+          console.log(proxyTrap);
+          console.clear();
+        }, 300);
+
+        // === AGGRESSIVE LOOP (Chạy mỗi 100ms) ===
+        setInterval(function () {
+          checkSize();
+          infiniteDebugger();
+        }, 100);
+
+        // === KIỂM TRA NGAY KHI LOAD ===
+        checkSize();
+        checkFirebug();
+        checkReactDevTools();
+
+        // === VÔ HIỆU HÓA CONSOLE ===
+        setTimeout(function () {
+          const noop = function () {
+            return undefined;
+          };
+          const props = Object.getOwnPropertyNames(console);
+          props.forEach(function (prop) {
+            try {
+              console[prop] = noop;
+            } catch (e) {}
+          });
+          // Override console object
+          Object.defineProperty(window, "console", {
+            get: function () {
+              return {
+                log: noop,
+                warn: noop,
+                error: noop,
+                info: noop,
+                debug: noop,
+                dir: noop,
+                table: noop,
+                trace: noop,
+                clear: noop,
+                profile: noop,
+                profileEnd: noop,
+              };
+            },
+            set: function () {},
+          });
+        }, 200);
+
+        // === CHẶN SELECTION/COPY/CUT/DRAG ===
+        ["selectstart", "copy", "cut", "paste", "dragstart"].forEach(function (
+          evt
+        ) {
+          document.addEventListener(
+            evt,
+            function (e) {
+              e.preventDefault();
+              return false;
+            },
+            true
+          );
+        });
+
+        // === CHẶN PRINT ===
+        window.addEventListener("beforeprint", function () {
+          byebye();
+        });
+
+        // === DETECT BLUR (Người dùng chuyển sang DevTools undocked) ===
+        let blurCount = 0;
+        window.addEventListener("blur", function () {
+          blurCount++;
+          if (blurCount > 3) {
+            // Người dùng blur nhiều lần có thể đang dùng DevTools undocked
+            setTimeout(checkSize, 500);
+          }
+        });
+
+        // === OVERRIDE eval và Function constructor ===
+        const originalEval = window.eval;
+        window.eval = function (code) {
+          if (
+            code &&
+            code.includes &&
+            (code.includes("debugger") || code.includes("devtools"))
+          ) {
+            byebye();
+          }
+          return originalEval.apply(this, arguments);
+        };
+
+        // === MUTATION OBSERVER (Phát hiện DOM changes từ DevTools) ===
+        const observer = new MutationObserver(function (mutations) {
+          mutations.forEach(function (mutation) {
+            if (
+              mutation.type === "attributes" &&
+              mutation.attributeName === "style"
+            ) {
+              // DevTools có thể thay đổi style khi hover inspect
+            }
+          });
+        });
+        observer.observe(document.documentElement, {
+          attributes: true,
+          subtree: true,
+        });
+
+        // === ANTI DEBUGGING MESSAGE ===
+        console.log(
+          "%c⚠️ STOP! ⚠️",
+          "color: red; font-size: 50px; font-weight: bold;"
+        );
+        console.log(
+          "%cThis is a protected page. Developer tools are not allowed.",
+          "color: red; font-size: 16px;"
+        );
+      })();
+    </script>
   </body>
 </html>
