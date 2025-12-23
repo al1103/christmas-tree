@@ -139,33 +139,8 @@ export default function App() {
         `Recording: Starting - Video size: ${videoWidth}x${videoHeight}`
       );
 
-      // Create canvas with medium resolution for better quality
-      const canvas = document.createElement("canvas");
-      canvas.width = 640; // Medium resolution
-      canvas.height = 480;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        console.log("Recording: Failed to get canvas context");
-        return;
-      }
-
-      // Create canvas stream for recording at 15fps
-      const canvasStream = canvas.captureStream(15);
-
-      // Draw video to canvas at 15fps
-      let isRecording = true;
-      let frameCount = 0;
-      const drawFrame = () => {
-        if (!isRecording) return;
-        ctx.save();
-        ctx.translate(canvas.width, 0);
-        ctx.scale(-1, 1);
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        ctx.restore();
-        frameCount++;
-        setTimeout(drawFrame, 66); // ~15fps
-      };
-      drawFrame();
+      // Use the original video stream directly - much more efficient!
+      const originalStream = video.srcObject as MediaStream;
 
       // Check supported mime types
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
@@ -174,9 +149,9 @@ export default function App() {
         ? "video/webm;codecs=vp8"
         : "video/webm";
 
-      const mediaRecorder = new MediaRecorder(canvasStream, {
+      const mediaRecorder = new MediaRecorder(originalStream, {
         mimeType,
-        videoBitsPerSecond: 1000000, // 1Mbps - medium quality
+        videoBitsPerSecond: 2000000, // 2Mbps - high quality
       });
       mediaRecorderRef.current = mediaRecorder;
 
@@ -195,11 +170,8 @@ export default function App() {
       // Promise to wait for recording to finish
       const recordingPromise = new Promise<Blob>((resolve) => {
         mediaRecorder.onstop = () => {
-          isRecording = false;
           const blob = new Blob(chunks, { type: mimeType });
-          console.log(
-            `Recording: Finished - Total size: ${blob.size} bytes, Frames: ${frameCount}`
-          );
+          console.log(`Recording: Finished - Total size: ${blob.size} bytes`);
           resolve(blob);
         };
       });
