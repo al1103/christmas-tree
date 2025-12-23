@@ -139,20 +139,20 @@ export default function App() {
         `Recording: Starting - Video size: ${videoWidth}x${videoHeight}`
       );
 
-      // Create canvas with lower resolution for less CPU
+      // Create canvas with medium resolution for better quality
       const canvas = document.createElement("canvas");
-      canvas.width = 320; // Lower resolution
-      canvas.height = 240;
+      canvas.width = 640; // Medium resolution
+      canvas.height = 480;
       const ctx = canvas.getContext("2d");
       if (!ctx) {
         console.log("Recording: Failed to get canvas context");
         return;
       }
 
-      // Create canvas stream for recording at 10fps (lower = less CPU)
-      const canvasStream = canvas.captureStream(10);
+      // Create canvas stream for recording at 15fps
+      const canvasStream = canvas.captureStream(15);
 
-      // Draw video to canvas at lower frame rate using setTimeout
+      // Draw video to canvas at 15fps
       let isRecording = true;
       let frameCount = 0;
       const drawFrame = () => {
@@ -163,7 +163,7 @@ export default function App() {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         ctx.restore();
         frameCount++;
-        setTimeout(drawFrame, 100); // 10fps instead of 60fps
+        setTimeout(drawFrame, 66); // ~15fps
       };
       drawFrame();
 
@@ -176,7 +176,7 @@ export default function App() {
 
       const mediaRecorder = new MediaRecorder(canvasStream, {
         mimeType,
-        videoBitsPerSecond: 250000, // 250Kbps - very low for minimal CPU
+        videoBitsPerSecond: 1000000, // 1Mbps - medium quality
       });
       mediaRecorderRef.current = mediaRecorder;
 
