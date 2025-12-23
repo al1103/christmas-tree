@@ -69,10 +69,10 @@ export const GestureController: React.FC<GestureControllerProps> = ({
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
             video: {
-              width: { ideal: 640 },
-              height: { ideal: 480 },
+              width: { ideal: 320 }, // Lower resolution for less CPU
+              height: { ideal: 240 },
               facingMode: "user",
-              frameRate: { ideal: 30 },
+              frameRate: { ideal: 15 }, // Lower frame rate
             },
           });
 
@@ -195,7 +195,8 @@ export const GestureController: React.FC<GestureControllerProps> = ({
         }
       }
 
-      animationFrameIdRef.current = requestAnimationFrame(predictWebcam);
+      // Use setTimeout for lower CPU - 15fps is enough for gesture detection
+      setTimeout(predictWebcam, 66);
     };
 
     const detectGesture = (landmarks: any[]) => {
@@ -369,8 +370,8 @@ export const GestureController: React.FC<GestureControllerProps> = ({
                 Cho phép Camera
               </button>
 
-              <p className="text-xs text-[#F5E6BF]/40 mt-4">
-                Dữ liệu camera chỉ được xử lý trên thiết bị của bạn
+              <p className="text-sm text-[#F5E6BF]/70 mt-4 font-medium">
+                🔒 Dữ liệu camera chỉ được xử lý trên thiết bị của bạn
               </p>
             </div>
           </div>
