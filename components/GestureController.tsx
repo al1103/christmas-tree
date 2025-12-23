@@ -24,8 +24,25 @@ export const GestureController: React.FC<GestureControllerProps> = ({
   const [handPos, setHandPos] = useState<{ x: number; y: number } | null>(null);
   const lastModeRef = useRef<TreeMode>(currentMode);
   const [showPermissionPopup, setShowPermissionPopup] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(false);
   const handLandmarkerRef = useRef<HandLandmarker | null>(null);
   const animationFrameIdRef = useRef<number>(0);
+  const isRunningRef = useRef(false);
+  const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Store callbacks in refs to avoid useEffect re-running
+  const onModeChangeRef = useRef(onModeChange);
+  const onHandPositionRef = useRef(onHandPosition);
+  const onTwoHandsDetectedRef = useRef(onTwoHandsDetected);
+  const onCameraReadyRef = useRef(onCameraReady);
+
+  // Update refs when callbacks change
+  useEffect(() => {
+    onModeChangeRef.current = onModeChange;
+    onHandPositionRef.current = onHandPosition;
+    onTwoHandsDetectedRef.current = onTwoHandsDetected;
+    onCameraReadyRef.current = onCameraReady;
+  }, [onModeChange, onHandPosition, onTwoHandsDetected, onCameraReady]);
 
   // Debounce logic refs
   const openFrames = useRef(0);
@@ -40,12 +57,20 @@ export const GestureController: React.FC<GestureControllerProps> = ({
   useEffect(() => {
     if (showPermissionPopup) return;
 
+    // Set initializing state
+    setIsInitializing(true);
+    isRunningRef.current = true;
+
     const setupMediaPipe = async () => {
       try {
+        console.log("Loading MediaPipe vision tasks...");
         const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm",
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
         );
 
+        if (!isRunningRef.current) return;
+
+        console.log("Creating HandLandmarker...");
         handLandmarkerRef.current = await HandLandmarker.createFromOptions(
           vision,
           {
@@ -55,47 +80,147 @@ export const GestureController: React.FC<GestureControllerProps> = ({
             },
             runningMode: "VIDEO",
             numHands: 2,
-          },
+          }
         );
 
-        startWebcam();
+        if (!isRunningRef.current) return;
+
+        console.log("MediaPipe initialized, starting webcam...");
+        await startWebcam();
       } catch (error) {
         console.error("Error initializing MediaPipe:", error);
+        setIsInitializing(false);
+        setGestureStatus("Lỗi khởi tạo");
       }
     };
 
-    const startWebcam = async () => {
+    const startWebcam = async (retryCount = 0) => {
+      console.log("[GestureController] startWebcam called, retry:", retryCount);
+      console.log(
+        "[GestureController] navigator.mediaDevices:",
+        !!navigator.mediaDevices
+      );
+
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
+          // Stop any existing stream first
+          if (videoRef.current && videoRef.current.srcObject) {
+            const oldStream = videoRef.current.srcObject as MediaStream;
+            oldStream.getTracks().forEach((track) => track.stop());
+            videoRef.current.srcObject = null;
+            console.log("[GestureController] Stopped existing stream");
+            // Wait a bit for camera to release
+            await new Promise((r) => setTimeout(r, 500));
+          }
+
+          console.log("[GestureController] Requesting camera permission...");
           const stream = await navigator.mediaDevices.getUserMedia({
             video: {
-              width: { ideal: 320 }, // Lower resolution for less CPU
+              width: { ideal: 320 },
               height: { ideal: 240 },
               facingMode: "user",
-              frameRate: { ideal: 15 }, // Lower frame rate
+              frameRate: { ideal: 15 },
             },
           });
+          console.log("[GestureController] Camera stream obtained:", stream);
 
+          if (!isRunningRef.current) {
+            console.log(
+              "[GestureController] Component unmounted, stopping stream"
+            );
+            stream.getTracks().forEach((track) => track.stop());
+            return;
+          }
+
+          console.log(
+            "[GestureController] videoRef.current:",
+            !!videoRef.current
+          );
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            videoRef.current.addEventListener("loadeddata", () => {
-              predictWebcam();
-              if (onCameraReady) onCameraReady();
-            });
-            setIsLoaded(true);
-            setGestureStatus("Waiting for hand...");
+            console.log("[GestureController] Stream assigned to video element");
+
+            const handleVideoReady = () => {
+              console.log("[GestureController] Video ready!");
+              console.log(
+                "[GestureController] Video dimensions:",
+                videoRef.current?.videoWidth,
+                "x",
+                videoRef.current?.videoHeight
+              );
+              setIsInitializing(false);
+              setIsLoaded(true);
+              setGestureStatus("Waiting for hand...");
+              if (isRunningRef.current) {
+                console.log("[GestureController] Starting predictWebcam loop");
+                predictWebcam();
+              }
+              if (onCameraReadyRef.current) {
+                console.log(
+                  "[GestureController] Calling onCameraReady callback"
+                );
+                onCameraReadyRef.current();
+              }
+            };
+
+            // Check if video is already ready (readyState >= 2 means data is available)
+            if (videoRef.current.readyState >= 2) {
+              console.log(
+                "[GestureController] Video already ready, skipping event listener"
+              );
+              handleVideoReady();
+            } else {
+              // Wait for loadeddata event
+              videoRef.current.addEventListener(
+                "loadeddata",
+                handleVideoReady,
+                { once: true }
+              );
+            }
+
+            // Also listen for errors
+            videoRef.current.addEventListener(
+              "error",
+              (e) => {
+                console.error("[GestureController] Video error:", e);
+                setIsInitializing(false);
+              },
+              { once: true }
+            );
+          } else {
+            console.error("[GestureController] videoRef.current is null!");
+            setIsInitializing(false);
           }
-        } catch (err) {
-          console.error("Error accessing webcam:", err);
+        } catch (err: any) {
+          console.error("[GestureController] Error accessing webcam:", err);
+
+          // Retry if camera is busy (NotReadableError)
+          if (err.name === "NotReadableError" && retryCount < 3) {
+            console.log(
+              `[GestureController] Camera busy, retrying in 1s... (attempt ${
+                retryCount + 1
+              }/3)`
+            );
+            await new Promise((r) => setTimeout(r, 1000));
+            return startWebcam(retryCount + 1);
+          }
+
+          setIsInitializing(false);
           setGestureStatus("Permission Denied");
         }
+      } else {
+        console.error(
+          "[GestureController] navigator.mediaDevices.getUserMedia not available"
+        );
+        setIsInitializing(false);
+        setGestureStatus("Camera không khả dụng");
       }
     };
 
     const drawSingleHandSkeleton = (
       landmarks: any[],
       ctx: CanvasRenderingContext2D,
-      canvas: HTMLCanvasElement,
+      canvas: HTMLCanvasElement
     ) => {
       const connections = [
         [0, 1],
@@ -161,13 +286,14 @@ export const GestureController: React.FC<GestureControllerProps> = ({
     };
 
     const predictWebcam = () => {
+      if (!isRunningRef.current) return;
       if (!handLandmarkerRef.current || !videoRef.current) return;
 
       const startTimeMs = performance.now();
       if (videoRef.current.videoWidth > 0) {
         const result = handLandmarkerRef.current.detectForVideo(
           videoRef.current,
-          startTimeMs,
+          startTimeMs
         );
 
         if (result.landmarks && result.landmarks.length > 0) {
@@ -177,8 +303,10 @@ export const GestureController: React.FC<GestureControllerProps> = ({
         } else {
           setGestureStatus("No hand detected");
           setHandPos(null);
-          if (onHandPosition) onHandPosition(0.5, 0.5, false);
-          if (onTwoHandsDetected) onTwoHandsDetected(false);
+          if (onHandPositionRef.current)
+            onHandPositionRef.current(0.5, 0.5, false);
+          if (onTwoHandsDetectedRef.current)
+            onTwoHandsDetectedRef.current(false);
           if (canvasRef.current) {
             const ctx = canvasRef.current.getContext("2d");
             if (ctx) {
@@ -186,7 +314,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
                 0,
                 0,
                 canvasRef.current.width,
-                canvasRef.current.height,
+                canvasRef.current.height
               );
             }
           }
@@ -195,8 +323,10 @@ export const GestureController: React.FC<GestureControllerProps> = ({
         }
       }
 
-      // Use setTimeout for lower CPU - 15fps is enough for gesture detection
-      setTimeout(predictWebcam, 66);
+      // Use setTimeout for lower CPU - schedule next frame only if still running
+      if (isRunningRef.current) {
+        timeoutIdRef.current = setTimeout(predictWebcam, 66);
+      }
     };
 
     const detectGesture = (landmarks: any[]) => {
@@ -217,7 +347,8 @@ export const GestureController: React.FC<GestureControllerProps> = ({
         5;
 
       setHandPos({ x: palmCenterX, y: palmCenterY });
-      if (onHandPosition) onHandPosition(palmCenterX, palmCenterY, true);
+      if (onHandPositionRef.current)
+        onHandPositionRef.current(palmCenterX, palmCenterY, true);
 
       const fingerTips = [8, 12, 16, 20];
       const fingerBases = [5, 9, 13, 17];
@@ -235,11 +366,11 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       const thumbBase = landmarks[2];
       const distThumbTip = Math.hypot(
         thumbTip.x - wrist.x,
-        thumbTip.y - wrist.y,
+        thumbTip.y - wrist.y
       );
       const distThumbBase = Math.hypot(
         thumbBase.x - wrist.x,
-        thumbBase.y - wrist.y,
+        thumbBase.y - wrist.y
       );
       if (distThumbTip > distThumbBase * 1.2) extendedFingers++;
 
@@ -247,16 +378,16 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       const indexBase = landmarks[5];
       const distIndexTip = Math.hypot(
         indexTip.x - wrist.x,
-        indexTip.y - wrist.y,
+        indexTip.y - wrist.y
       );
       const distIndexBase = Math.hypot(
         indexBase.x - wrist.x,
-        indexBase.y - wrist.y,
+        indexBase.y - wrist.y
       );
       const isIndexExtended = distIndexTip > distIndexBase * 1.1;
       const pinchDistance = Math.hypot(
         thumbTip.x - indexTip.x,
-        thumbTip.y - indexTip.y,
+        thumbTip.y - indexTip.y
       );
       const isPinching = pinchDistance < 0.08 && isIndexExtended;
 
@@ -265,7 +396,8 @@ export const GestureController: React.FC<GestureControllerProps> = ({
         closedFrames.current = 0;
         setGestureStatus("Detected: PINCH (Show Photo)");
         if (openFrames.current > CONFIDENCE_THRESHOLD) {
-          if (onTwoHandsDetected) onTwoHandsDetected(true);
+          if (onTwoHandsDetectedRef.current)
+            onTwoHandsDetectedRef.current(true);
         }
       } else if (extendedFingers >= 4) {
         closedFrames.current = 0;
@@ -273,9 +405,9 @@ export const GestureController: React.FC<GestureControllerProps> = ({
         setGestureStatus("Detected: OPEN (Unleash)");
         if (lastModeRef.current !== TreeMode.CHAOS) {
           lastModeRef.current = TreeMode.CHAOS;
-          onModeChange(TreeMode.CHAOS);
+          onModeChangeRef.current(TreeMode.CHAOS);
         }
-        if (onTwoHandsDetected) onTwoHandsDetected(false);
+        if (onTwoHandsDetectedRef.current) onTwoHandsDetectedRef.current(false);
       } else if (extendedFingers <= 1) {
         closedFrames.current++;
         openFrames.current = 0;
@@ -283,31 +415,42 @@ export const GestureController: React.FC<GestureControllerProps> = ({
         if (closedFrames.current > CONFIDENCE_THRESHOLD) {
           if (lastModeRef.current !== TreeMode.FORMED) {
             lastModeRef.current = TreeMode.FORMED;
-            onModeChange(TreeMode.FORMED);
+            onModeChangeRef.current(TreeMode.FORMED);
           }
         }
-        if (onTwoHandsDetected) onTwoHandsDetected(false);
+        if (onTwoHandsDetectedRef.current) onTwoHandsDetectedRef.current(false);
       } else {
         setGestureStatus("Detected: ...");
         openFrames.current = 0;
         closedFrames.current = 0;
-        if (onTwoHandsDetected) onTwoHandsDetected(false);
+        if (onTwoHandsDetectedRef.current) onTwoHandsDetectedRef.current(false);
       }
     };
 
     setupMediaPipe();
 
     return () => {
+      // Stop prediction loop
+      isRunningRef.current = false;
+
+      // Clear any pending timeout
+      if (timeoutIdRef.current) {
+        clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = null;
+      }
+
       cancelAnimationFrame(animationFrameIdRef.current);
+
+      // Stop camera stream
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach((track) => track.stop());
+      }
+
       if (handLandmarkerRef.current) handLandmarkerRef.current.close();
     };
-  }, [
-    showPermissionPopup,
-    onModeChange,
-    onHandPosition,
-    onTwoHandsDetected,
-    onCameraReady,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showPermissionPopup]); // Only depend on showPermissionPopup to avoid re-running on callback changes
 
   useEffect(() => {
     lastModeRef.current = currentMode;
@@ -325,7 +468,8 @@ export const GestureController: React.FC<GestureControllerProps> = ({
                   className="w-10 h-10 text-[#D4AF37]"
                   fill="none"
                   stroke="currentColor"
-                  viewBox="0 0 24 24">
+                  viewBox="0 0 24 24"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -337,7 +481,8 @@ export const GestureController: React.FC<GestureControllerProps> = ({
 
               <h2
                 className="text-2xl font-bold text-[#D4AF37] mb-4"
-                style={{ fontFamily: "Cinzel, serif" }}>
+                style={{ fontFamily: "Cinzel, serif" }}
+              >
                 Cho phép Camera
               </h2>
 
@@ -366,7 +511,8 @@ export const GestureController: React.FC<GestureControllerProps> = ({
 
               <button
                 onClick={requestCameraPermission}
-                className="w-full py-3 px-6 bg-gradient-to-r from-[#D4AF37] to-[#C5A028] text-black font-bold rounded-lg hover:from-[#F5E6BF] hover:to-[#D4AF37] transition-all duration-300 shadow-lg hover:shadow-[#D4AF37]/30">
+                className="w-full py-3 px-6 bg-gradient-to-r from-[#D4AF37] to-[#C5A028] text-black font-bold rounded-lg hover:from-[#F5E6BF] hover:to-[#D4AF37] transition-all duration-300 shadow-lg hover:shadow-[#D4AF37]/30"
+              >
                 Cho phép Camera
               </button>
 
@@ -378,9 +524,28 @@ export const GestureController: React.FC<GestureControllerProps> = ({
         </div>
       )}
 
+      {/* Loading Indicator when initializing */}
+      {isInitializing && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="text-center">
+            <div className="w-16 h-16 mx-auto mb-4 border-4 border-[#D4AF37]/30 border-t-[#D4AF37] rounded-full animate-spin"></div>
+            <p
+              className="text-[#D4AF37] text-lg font-medium"
+              style={{ fontFamily: "Cinzel, serif" }}
+            >
+              Đang khởi tạo camera...
+            </p>
+            <p className="text-[#F5E6BF]/60 text-sm mt-2">
+              Vui lòng cho phép truy cập camera
+            </p>
+          </div>
+        </div>
+      )}
+
       <div
         className="absolute top-6 right-[8%] z-50 flex flex-col items-end pointer-events-none"
-        style={{ opacity: 0, pointerEvents: "none" }}>
+        style={{ opacity: 0, pointerEvents: "none" }}
+      >
         <video
           ref={videoRef}
           id="webcam-video"
