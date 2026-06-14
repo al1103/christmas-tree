@@ -24,6 +24,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
   const [handPos, setHandPos] = useState<{ x: number; y: number } | null>(null);
   const lastModeRef = useRef<TreeMode>(currentMode);
   const [showPermissionPopup, setShowPermissionPopup] = useState(true);
+  const [initError, setInitError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const handLandmarkerRef = useRef<HandLandmarker | null>(null);
   const animationFrameIdRef = useRef<number>(0);
@@ -49,8 +50,8 @@ export const GestureController: React.FC<GestureControllerProps> = ({
   const closedFrames = useRef(0);
   const CONFIDENCE_THRESHOLD = 5;
 
-  // Request camera permission
   const requestCameraPermission = () => {
+    setInitError(null);
     setShowPermissionPopup(false);
   };
 
@@ -63,34 +64,45 @@ export const GestureController: React.FC<GestureControllerProps> = ({
 
     const setupMediaPipe = async () => {
       try {
-        console.log("Loading MediaPipe vision tasks...");
         const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm",
         );
 
         if (!isRunningRef.current) return;
 
-        console.log("Creating HandLandmarker...");
-        handLandmarkerRef.current = await HandLandmarker.createFromOptions(
-          vision,
-          {
-            baseOptions: {
-              modelAssetPath: `/models/hand_landmarker.task`,
-              delegate: "GPU",
-            },
-            runningMode: "VIDEO",
-            numHands: 2,
+        let created = false;
+        for (const delegate of ["GPU", "CPU"] as const) {
+          try {
+            handLandmarkerRef.current = await HandLandmarker.createFromOptions(
+              vision,
+              {
+                baseOptions: {
+                  modelAssetPath: `/models/hand_landmarker.task`,
+                  delegate,
+                },
+                runningMode: "VIDEO",
+                numHands: 2,
+              },
+            );
+            created = true;
+            break;
+          } catch (delegateErr) {
+            console.warn(`HandLandmarker delegate ${delegate} failed, trying next...`, delegateErr);
           }
-        );
+        }
+
+        if (!created) throw new Error("Không thể khởi tạo nhận diện tay (GPU và CPU đều thất bại)");
 
         if (!isRunningRef.current) return;
 
-        console.log("MediaPipe initialized, starting webcam...");
         await startWebcam();
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error initializing MediaPipe:", error);
         setIsInitializing(false);
         setGestureStatus("Lỗi khởi tạo");
+        setInitError(error?.message || "Không thể khởi tạo. Vui lòng thử lại.");
+        setShowPermissionPopup(true);
+        isRunningRef.current = false;
       }
     };
 
@@ -98,7 +110,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       console.log("[GestureController] startWebcam called, retry:", retryCount);
       console.log(
         "[GestureController] navigator.mediaDevices:",
-        !!navigator.mediaDevices
+        !!navigator.mediaDevices,
       );
 
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -126,7 +138,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
 
           if (!isRunningRef.current) {
             console.log(
-              "[GestureController] Component unmounted, stopping stream"
+              "[GestureController] Component unmounted, stopping stream",
             );
             stream.getTracks().forEach((track) => track.stop());
             return;
@@ -134,7 +146,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
 
           console.log(
             "[GestureController] videoRef.current:",
-            !!videoRef.current
+            !!videoRef.current,
           );
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
@@ -146,7 +158,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
                 "[GestureController] Video dimensions:",
                 videoRef.current?.videoWidth,
                 "x",
-                videoRef.current?.videoHeight
+                videoRef.current?.videoHeight,
               );
               setIsInitializing(false);
               setIsLoaded(true);
@@ -157,7 +169,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
               }
               if (onCameraReadyRef.current) {
                 console.log(
-                  "[GestureController] Calling onCameraReady callback"
+                  "[GestureController] Calling onCameraReady callback",
                 );
                 onCameraReadyRef.current();
               }
@@ -166,7 +178,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
             // Check if video is already ready (readyState >= 2 means data is available)
             if (videoRef.current.readyState >= 2) {
               console.log(
-                "[GestureController] Video already ready, skipping event listener"
+                "[GestureController] Video already ready, skipping event listener",
               );
               handleVideoReady();
             } else {
@@ -174,7 +186,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
               videoRef.current.addEventListener(
                 "loadeddata",
                 handleVideoReady,
-                { once: true }
+                { once: true },
               );
             }
 
@@ -185,7 +197,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
                 console.error("[GestureController] Video error:", e);
                 setIsInitializing(false);
               },
-              { once: true }
+              { once: true },
             );
           } else {
             console.error("[GestureController] videoRef.current is null!");
@@ -199,7 +211,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
             console.log(
               `[GestureController] Camera busy, retrying in 1s... (attempt ${
                 retryCount + 1
-              }/3)`
+              }/3)`,
             );
             await new Promise((r) => setTimeout(r, 1000));
             return startWebcam(retryCount + 1);
@@ -210,7 +222,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
         }
       } else {
         console.error(
-          "[GestureController] navigator.mediaDevices.getUserMedia not available"
+          "[GestureController] navigator.mediaDevices.getUserMedia not available",
         );
         setIsInitializing(false);
         setGestureStatus("Camera không khả dụng");
@@ -220,7 +232,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
     const drawSingleHandSkeleton = (
       landmarks: any[],
       ctx: CanvasRenderingContext2D,
-      canvas: HTMLCanvasElement
+      canvas: HTMLCanvasElement,
     ) => {
       const connections = [
         [0, 1],
@@ -293,7 +305,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       if (videoRef.current.videoWidth > 0) {
         const result = handLandmarkerRef.current.detectForVideo(
           videoRef.current,
-          startTimeMs
+          startTimeMs,
         );
 
         if (result.landmarks && result.landmarks.length > 0) {
@@ -314,7 +326,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({
                 0,
                 0,
                 canvasRef.current.width,
-                canvasRef.current.height
+                canvasRef.current.height,
               );
             }
           }
@@ -366,11 +378,11 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       const thumbBase = landmarks[2];
       const distThumbTip = Math.hypot(
         thumbTip.x - wrist.x,
-        thumbTip.y - wrist.y
+        thumbTip.y - wrist.y,
       );
       const distThumbBase = Math.hypot(
         thumbBase.x - wrist.x,
-        thumbBase.y - wrist.y
+        thumbBase.y - wrist.y,
       );
       if (distThumbTip > distThumbBase * 1.2) extendedFingers++;
 
@@ -378,16 +390,16 @@ export const GestureController: React.FC<GestureControllerProps> = ({
       const indexBase = landmarks[5];
       const distIndexTip = Math.hypot(
         indexTip.x - wrist.x,
-        indexTip.y - wrist.y
+        indexTip.y - wrist.y,
       );
       const distIndexBase = Math.hypot(
         indexBase.x - wrist.x,
-        indexBase.y - wrist.y
+        indexBase.y - wrist.y,
       );
       const isIndexExtended = distIndexTip > distIndexBase * 1.1;
       const pinchDistance = Math.hypot(
         thumbTip.x - indexTip.x,
-        thumbTip.y - indexTip.y
+        thumbTip.y - indexTip.y,
       );
       const isPinching = pinchDistance < 0.08 && isIndexExtended;
 
@@ -483,42 +495,46 @@ export const GestureController: React.FC<GestureControllerProps> = ({
                 className="text-2xl font-bold text-[#D4AF37] mb-4"
                 style={{ fontFamily: "Cinzel, serif" }}
               >
-                Cho phép Camera
+                {initError ? "Lỗi Khởi Tạo" : "Cho phép Camera"}
               </h2>
 
-              <p className="text-[#F5E6BF]/80 mb-6 leading-relaxed">
-                Ứng dụng cần quyền truy cập camera để{" "}
-                <span className="text-[#D4AF37] font-semibold">
-                  nhận diện cử chỉ tay
-                </span>{" "}
-                của bạn và điều khiển cây thông Noel.
-              </p>
+              {initError ? (
+                <p className="text-red-400/90 mb-6 leading-relaxed text-sm">
+                  {initError}
+                </p>
+              ) : (
+                <p className="text-[#F5E6BF]/80 mb-6 leading-relaxed">
+                  Ứng dụng cần quyền truy cập camera để{" "}
+                  <span className="text-[#D4AF37] font-semibold">
+                    nhận diện cử chỉ tay
+                  </span>{" "}
+                  của bạn và điều khiển cây thông Noel.
+                </p>
+              )}
 
-              <div className="text-left text-sm text-[#F5E6BF]/60 mb-6 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-[#D4AF37]">✋</span>
-                  <span>Xòe tay - Unleash hiệu ứng</span>
+              {!initError && (
+                <div className="text-left text-sm text-[#F5E6BF]/60 mb-6 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[#D4AF37]">✋</span>
+                    <span>Xòe tay - Unleash hiệu ứng</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[#D4AF37]">✊</span>
+                    <span>Nắm tay - Khôi phục cây thông</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[#D4AF37]">👌</span>
+                    <span>Chụm ngón - Xem ảnh kỷ niệm</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[#D4AF37]">✊</span>
-                  <span>Nắm tay - Khôi phục cây thông</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[#D4AF37]">👌</span>
-                  <span>Chụm ngón - Xem ảnh kỷ niệm</span>
-                </div>
-              </div>
+              )}
 
               <button
                 onClick={requestCameraPermission}
                 className="w-full py-3 px-6 bg-gradient-to-r from-[#D4AF37] to-[#C5A028] text-black font-bold rounded-lg hover:from-[#F5E6BF] hover:to-[#D4AF37] transition-all duration-300 shadow-lg hover:shadow-[#D4AF37]/30"
               >
-                Cho phép Camera
+                {initError ? "Thử Lại" : "Cho phép Camera"}
               </button>
-
-              <p className="text-sm text-[#F5E6BF]/70 mt-4 font-medium">
-                🔒 Dữ liệu camera chỉ được xử lý trên thiết bị của bạn
-              </p>
             </div>
           </div>
         </div>

@@ -122,100 +122,70 @@ export const Ornaments: React.FC<OrnamentsProps> = ({ mode, count }) => {
     });
   }, [ballsData, giftsData, lightsData]);
 
+  const progressRefs = useRef<{
+    balls: Float32Array;
+    gifts: Float32Array;
+    lights: Float32Array;
+  } | null>(null);
+
+  if (!progressRefs.current) {
+    progressRefs.current = {
+      balls: new Float32Array(ballsData.length),
+      gifts: new Float32Array(giftsData.length),
+      lights: new Float32Array(lightsData.length),
+    };
+  }
+
   useFrame((state, delta) => {
     const isFormed = mode === TreeMode.FORMED;
     const time = state.clock.elapsedTime;
+    const progress = progressRefs.current!;
 
-    // Helper to update a mesh ref
     const updateMesh = (
       ref: React.RefObject<THREE.InstancedMesh>,
-      data: InstanceData[]
+      data: InstanceData[],
+      progressArray: Float32Array
     ) => {
       if (!ref.current) return;
 
-      let needsUpdate = false;
-
       data.forEach((d, i) => {
-        // Interpolation Factor based on individual speed and global delta
-        // We use a simple approach: if formed, target is targetPos, else chaosPos
-        const dest = isFormed ? d.targetPos : d.chaosPos;
-
-        // We actually want to lerp the CURRENT position to the DESTINATION
-        // But extracting current position from matrix is expensive every frame for all.
-        // Instead, we calculate "current" based on a virtual progress 0-1 driven by state.
-
-        // To simulate "physics" (heavy/light), we don't store state per particle here (too complex for this snippet).
-        // Instead, we calculate position based on a time-dependent lerp factor.
-
-        // However, a simple way to make it feel organic is:
-        // Position = Mix(Chaos, Target, SmoothStep(GlobalProgress * speed))
-
-        // Let's use a sin wave derived from time for hover, but the main transition is driven by a hidden 'progress' value
-        // Since we don't have a global store for animation progress per particle, we approximate using the mode switch time.
-        // For a robust system, we'd use a spring library, but here we do manual lerping.
-
-        // Get current matrix position to lerp from? Too expensive.
-        // Let's assume a global transition variable `t` that goes 0->1 or 1->0.
-        // We will misuse the object's userdata or just calculate purely functional.
-
-        // Functional approach:
-        // We need an accumulated value. Let's create a visual wobble.
-
-        // NOTE: For true interactive physics, we'd use useSprings from react-spring/three,
-        // but for 1000 instances, manual matrix manipulation is better.
-        // Here we will simply interpolate between the two static positions based on a "progress" variable
-        // that we track manually or approximate.
-
-        // Let's read a custom progress from the dataset.
-        // We'll augment the data object with a mutable `currentProgress` property in a closure if possible,
-        // but `data` is static.
-
-        // Let's just use the `MathUtils.lerp` on the vectors directly inside the loop
-        // by reading the matrix, lerping, writing back.
-        ref.current!.getMatrixAt(i, dummy.matrix);
-        dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
-
-        const step = delta * d.speed;
-
-        // Only lerp if not close enough (skip unnecessary computation)
-        if (dummy.position.distanceTo(dest) > 0.1) {
-          dummy.position.lerp(dest, step);
-        } else {
-          dummy.position.copy(dest);
-        }
-
-        // Add wobble when formed (simplified)
+        let p = progressArray[i];
         if (isFormed) {
+          p = Math.min(1, p + delta * d.speed);
+        } else {
+          p = Math.max(0, p - delta * d.speed * 1.5);
+        }
+        progressArray[i] = p;
+
+        const easedP = p * p * (3 - 2 * p);
+        dummy.position.lerpVectors(d.chaosPos, d.targetPos, easedP);
+
+        if (isFormed && p > 0.95) {
           dummy.position.y += Math.sin(time * 2 + i) * 0.002;
         }
 
-        // Rotation
         if (d.type === "gift") {
-          dummy.rotation.x += delta * 0.5;
-          dummy.rotation.y += delta * 0.2;
+          dummy.rotation.set(time * 0.5 + d.rotationOffset.x, time * 0.2 + d.rotationOffset.y, 0);
         } else {
-          // Balls face out
           dummy.lookAt(0, dummy.position.y, 0);
         }
 
         dummy.scale.setScalar(d.scale);
         if (d.type === "light") {
-          // Pulsate lights
           const pulse = 1 + Math.sin(time * 5 + d.chaosPos.y) * 0.3;
           dummy.scale.multiplyScalar(pulse);
         }
 
         dummy.updateMatrix();
         ref.current!.setMatrixAt(i, dummy.matrix);
-        needsUpdate = true;
       });
 
-      if (needsUpdate) ref.current.instanceMatrix.needsUpdate = true;
+      ref.current.instanceMatrix.needsUpdate = true;
     };
 
-    updateMesh(ballsRef, ballsData);
-    updateMesh(giftsRef, giftsData);
-    updateMesh(lightsRef, lightsData);
+    updateMesh(ballsRef, ballsData, progress.balls);
+    updateMesh(giftsRef, giftsData, progress.gifts);
+    updateMesh(lightsRef, lightsData, progress.lights);
   });
 
   return (

@@ -1,6 +1,5 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Text } from "@react-three/drei";
 import * as THREE from "three";
 import { TreeMode } from "../types";
 
@@ -21,7 +20,9 @@ import { TreeMode } from "../types";
  * ==================================================================================
  */
 
-const PHOTO_COUNT = 22; // How many polaroid frames to generate
+const photoFiles = import.meta.glob('/public/photos/*.{jpg,jpeg,png,webp,gif}', { eager: true });
+// Lấy danh sách đường dẫn ảnh (bỏ prefix /public vì khi chạy web root là public)
+const DEFAULT_PHOTOS = Object.keys(photoFiles).map(path => path.replace('/public', ''));
 
 interface PolaroidsProps {
   mode: TreeMode;
@@ -139,16 +140,6 @@ const PolaroidItem: React.FC<{
           <meshStandardMaterial color="#D4AF37" metalness={1} roughness={0.2} />
         </mesh>
 
-        {/* Text Label */}
-        <Text
-          position={[0, -0.55, 0.03]}
-          fontSize={0.12}
-          color="#333"
-          anchorX="center"
-          anchorY="middle"
-        >
-          {error ? "Image not found" : "Happy Memories"}
-        </Text>
       </group>
     </group>
   );
@@ -164,28 +155,17 @@ export const Polaroids: React.FC<PolaroidsProps> = ({
   const [closestPhotoIndex, setClosestPhotoIndex] = React.useState<number>(0);
 
   const photoData = useMemo(() => {
-    // Don't render any photos if none are uploaded
-    if (uploadedPhotos.length === 0) {
-      return [];
-    }
-
+    const photos = uploadedPhotos.length > 0 ? uploadedPhotos : DEFAULT_PHOTOS;
+    const height = 9;
+    const maxRadius = 5.0;
     const data: PhotoData[] = [];
-    const height = 9; // Range of height on tree
-    const maxRadius = 5.0; // Slightly outside the foliage radius (which is approx 5 at bottom)
-
-    const count = uploadedPhotos.length;
+    const count = photos.length;
 
     for (let i = 0; i < count; i++) {
-      // 1. Target Position
-      // Distributed nicely on the cone surface
-      const yNorm = 0.2 + (i / count) * 0.6; // Keep between 20% and 80% height
+      const yNorm = 0.2 + (i / count) * 0.6;
       const y = yNorm * height;
-
-      // Radius decreases as we go up
-      const r = maxRadius * (1 - yNorm) + 0.8; // +0.8 to ensure it floats OUTSIDE leaves
-
-      // Golden Angle Spiral for even distribution
-      const theta = i * 2.39996; // Golden angle in radians
+      const r = maxRadius * (1 - yNorm) + 0.8;
+      const theta = i * 2.39996;
 
       const targetPos = new THREE.Vector3(
         r * Math.cos(theta),
@@ -193,24 +173,22 @@ export const Polaroids: React.FC<PolaroidsProps> = ({
         r * Math.sin(theta)
       );
 
-      // 2. Chaos Position - Arrange photos in a circle around the camera
-      // Camera is at [0, 4, 20], Scene group offset is [0, -5, 0]
-      const chaosRadius = 8 + Math.random() * 4; // Random radius for depth
-      const chaosAngle = (i / count) * Math.PI * 2; // Evenly distributed around
-      const chaosY = 5 + Math.sin(i * 1.5) * 3; // Varied heights
+      const chaosRadius = 8 + Math.random() * 4;
+      const chaosAngle = (i / count) * Math.PI * 2;
+      const chaosY = 5 + Math.sin(i * 1.5) * 3;
 
       const chaosPos = new THREE.Vector3(
         Math.cos(chaosAngle) * chaosRadius,
         chaosY,
-        Math.sin(chaosAngle) * chaosRadius + 10 // Offset forward toward camera
+        Math.sin(chaosAngle) * chaosRadius + 10
       );
 
       data.push({
         id: i,
-        url: uploadedPhotos[i],
+        url: photos[i],
         chaosPos,
         targetPos,
-        speed: 1.5 + Math.random() * 0.5, // Faster speed for snappier transitions
+        speed: 1.5 + Math.random() * 0.5,
       });
     }
     return data;

@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>3D Grid Room (Open Front) – Blueprint Line Art</title>
+    <style>
+      :root {
+        --safe: 4;
+      } /* % safe margin */
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        background: #fff;
+      }
+      body {
+        display: grid;
+        place-items: center;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial,
+          sans-serif;
+        color: #111;
+      }
+      .wrap {
+        width: 100vw;
+        height: 100vh;
+        display: grid;
+        place-items: center;
+        position: relative;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+        background: #fff;
+        border: 0;
+      }
+      .ui {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        display: inline-flex;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 12px;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(6px);
+        user-select: none;
+      }
+      .ui label {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        font-size: 13px;
+      }
+      .ui .sep {
+        width: 1px;
+        height: 18px;
+        background: rgba(0, 0, 0, 0.1);
+        margin: 0 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <canvas id="c"></canvas>
+
+      <div class="ui">
+        <strong style="font-size: 13px; font-weight: 600">View</strong>
+        <label
+          ><input type="radio" name="view" value="inside" checked /> Trong →
+          ra</label
+        >
+        <label
+          ><input type="radio" name="view" value="outside" /> Ngoài → vào</label
+        >
+        <span class="sep"></span>
+        <label>
+          Grid
+          <input
+            id="grid"
+            type="range"
+            min="0.5"
+            max="2.0"
+            step="0.25"
+            value="1"
+            style="width: 120px"
+          />
+        </label>
+      </div>
+    </div>
+
+    <script>
+      // ---------- Canvas + 16:9 fit with safe margin ----------
+      const canvas = document.getElementById("c");
+      const ctx = canvas.getContext("2d");
+      const gridSlider = document.getElementById("grid");
+
+      function fitCanvas16x9() {
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+
+        // Keep a 16:9 canvas inside viewport
+        const targetAR = 16 / 9;
+        let w = vw,
+          h = vw / targetAR;
+        if (h > vh) {
+          h = vh;
+          w = vh * targetAR;
+        }
+
+        // Device pixel ratio
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        canvas.style.width = `${Math.floor(w)}px`;
+        canvas.style.height = `${Math.floor(h)}px`;
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      // ---------- Tiny 3D wireframe renderer ----------
+      const DEG = Math.PI / 180;
+
+      function rotY(v, a) {
+        const c = Math.cos(a),
+          s = Math.sin(a);
+        return { x: v.x * c + v.z * s, y: v.y, z: -v.x * s + v.z * c };
+      }
+      function rotX(v, a) {
+        const c = Math.cos(a),
+          s = Math.sin(a);
+        return { x: v.x, y: v.y * c - v.z * s, z: v.y * s + v.z * c };
+      }
+      function sub(a, b) {
+        return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
+      }
+      function lerp(a, b, t) {
+        return {
+          x: a.x + (b.x - a.x) * t,
+          y: a.y + (b.y - a.y) * t,
+          z: a.z + (b.z - a.z) * t,
+        };
+      }
+
+      function worldToCamera(p, cam) {
+        // translate
+        let v = sub(p, cam.pos);
+        // rotate opposite direction (camera transform)
+        v = rotY(v, -cam.yaw);
+        v = rotX(v, -cam.pitch);
+        return v;
+      }
+
+      function project(pCam, proj) {
+        // pCam is in camera space
+        const z = pCam.z;
+        const x = (pCam.x / z) * proj.f + proj.cx;
+        const y = (-pCam.y / z) * proj.f + proj.cy;
+        return { x, y, z };
+      }
+
+      function clipToNear(a, b, near) {
+        // Returns [a', b'] or null
+        const za = a.z,
+          zb = b.z;
+        const ina = za >= near;
+        const inb = zb >= near;
+        if (!ina && !inb) return null;
+        if (ina && inb) return [a, b];
+        // One is outside: interpolate
+        const t = (near - za) / (zb - za);
+        const p = lerp(a, b, t);
+        if (!ina) return [p, b];
+        return [a, p];
+      }
+
+      function line3D(p1, p2, cam, proj, near) {
+        const a = worldToCamera(p1, cam);
+        const b = worldToCamera(p2, cam);
+
+        const clipped = clipToNear(a, b, near);
+        if (!clipped) return;
+
+        const A = project(clipped[0], proj);
+        const B = project(clipped[1], proj);
+
+        ctx.moveTo(A.x, A.y);
+        ctx.lineTo(B.x, B.y);
+      }
+
+      // ---------- Room geometry (open front) ----------
+      function buildGridSegments(W, H, D, step) {
+        const segs = [];
+
+        const x0 = -W / 2,
+          x1 = W / 2;
+        const y0 = -H / 2,
+          y1 = H / 2;
+        const zF = -D / 2; // front opening plane
+        const zB = D / 2; // back wall plane
+
+        // Helper: push segment
+        const S = (a, b) => segs.push([a, b]);
+
+        // Outer edges (keep the opening rim; no front "face" plane)
+        const cornersFront = [
+          { x: x0, y: y0, z: zF },
+          { x: x1, y: y0, z: zF },
+          { x: x1, y: y1, z: zF },
+          { x: x0, y: y1, z: zF },
+        ];
+        const cornersBack = [
+          { x: x0, y: y0, z: zB },
+          { x: x1, y: y0, z: zB },
+          { x: x1, y: y1, z: zB },
+          { x: x0, y: y1, z: zB },
+        ];
+
+        // Front rim
+        S(cornersFront[0], cornersFront[1]);
+        S(cornersFront[1], cornersFront[2]);
+        S(cornersFront[2], cornersFront[3]);
+        S(cornersFront[3], cornersFront[0]);
+
+        // Back rectangle
+        S(cornersBack[0], cornersBack[1]);
+        S(cornersBack[1], cornersBack[2]);
+        S(cornersBack[2], cornersBack[3]);
+        S(cornersBack[3], cornersBack[0]);
+
+        // Depth edges
+        for (let i = 0; i < 4; i++) S(cornersFront[i], cornersBack[i]);
+
+        // Grid count
+        const nx = Math.max(2, Math.round(W / step));
+        const ny = Math.max(2, Math.round(H / step));
+        const nz = Math.max(2, Math.round(D / step));
+
+        // Back face (z = zB): grid in x/y
+        for (let i = 0; i <= nx; i++) {
+          const x = x0 + (W * i) / nx;
+          S({ x, y: y0, z: zB }, { x, y: y1, z: zB });
+        }
+        for (let j = 0; j <= ny; j++) {
+          const y = y0 + (H * j) / ny;
+          S({ x: x0, y, z: zB }, { x: x1, y, z: zB });
+        }
+
+        // Floor (y = y0): grid in x/z (excluding front face plane; lines end at front rim)
+        for (let i = 0; i <= nx; i++) {
+          const x = x0 + (W * i) / nx;
+          S({ x, y: y0, z: zF }, { x, y: y0, z: zB });
+        }
+        for (let k = 0; k <= nz; k++) {
+          const z = zF + (D * k) / nz;
+          S({ x: x0, y: y0, z }, { x: x1, y: y0, z });
+        }
+
+        // Ceiling (y = y1)
+        for (let i = 0; i <= nx; i++) {
+          const x = x0 + (W * i) / nx;
+          S({ x, y: y1, z: zF }, { x, y: y1, z: zB });
+        }
+        for (let k = 0; k <= nz; k++) {
+          const z = zF + (D * k) / nz;
+          S({ x: x0, y: y1, z }, { x: x1, y: y1, z });
+        }
+
+        // Left wall (x = x0): grid in y/z
+        for (let j = 0; j <= ny; j++) {
+          const y = y0 + (H * j) / ny;
+          S({ x: x0, y, z: zF }, { x: x0, y, z: zB });
+        }
+        for (let k = 0; k <= nz; k++) {
+          const z = zF + (D * k) / nz;
+          S({ x: x0, y: y0, z }, { x: x0, y: y1, z });
+        }
+
+        // Right wall (x = x1)
+        for (let j = 0; j <= ny; j++) {
+          const y = y0 + (H * j) / ny;
+          S({ x: x1, y, z: zF }, { x: x1, y, z: zB });
+        }
+        for (let k = 0; k <= nz; k++) {
+          const z = zF + (D * k) / nz;
+          S({ x: x1, y: y0, z }, { x: x1, y: y1, z });
+        }
+
+        return segs;
+      }
+
+      function getViewMode() {
+        return document.querySelector('input[name="view"]:checked').value;
+      }
+
+      function render() {
+        const cssW =
+          canvas.clientWidth ||
+          parseFloat(canvas.style.width) ||
+          window.innerWidth;
+        const cssH =
+          canvas.clientHeight ||
+          parseFloat(canvas.style.height) ||
+          window.innerHeight;
+
+        ctx.clearRect(0, 0, cssW, cssH);
+
+        // Safe margin box
+        const safePct =
+          parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue(
+              "--safe"
+            )
+          ) || 4;
+        const padX = cssW * (safePct / 100);
+        const padY = cssH * (safePct / 100);
+        const innerW = cssW - padX * 2;
+        const innerH = cssH - padY * 2;
+
+        // Projection setup (fit into safe area)
+        const cx = padX + innerW / 2;
+        const cy = padY + innerH / 2;
+
+        // Camera
+        const mode = getViewMode();
+        const W = 10,
+          H = 6,
+          D = 14; // room proportions (rectangular)
+        const gridStep = parseFloat(gridSlider.value); // world units
+
+        const cam = {
+          // yaw/pitch kept very clean (technical)
+          yaw: 0 * DEG,
+          pitch: 0 * DEG,
+          pos: {
+            x: 0,
+            y: 0.2,
+            z: mode === "inside" ? -D / 2 + 0.9 : -D / 2 - 8.5,
+          },
+        };
+
+        // FOV tuned for "fills most of 16:9" while leaving safe border
+        const fov = (mode === "inside" ? 62 : 50) * DEG;
+        const f = (Math.min(innerW, innerH) * 0.55) / Math.tan(fov / 2);
+        const proj = { f, cx, cy };
+
+        const near = 0.12;
+
+        // Style: thin technical lines on white
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = "rgba(0,0,0,0.55)";
+        ctx.lineWidth = 1; // "mảnh như bản vẽ kỹ thuật"
+
+        // Build segments and draw
+        const segs = buildGridSegments(W, H, D, gridStep);
+
+        ctx.beginPath();
+        for (const [a, b] of segs) line3D(a, b, cam, proj, near);
+        ctx.stroke();
+
+        // Optional: slightly darker outline for the room edges (keeps it crisp)
+        ctx.strokeStyle = "rgba(0,0,0,0.85)";
+        ctx.lineWidth = 1.2;
+        const outline = [
+          // front rim
+          [
+            { x: -W / 2, y: -H / 2, z: -D / 2 },
+            { x: W / 2, y: -H / 2, z: -D / 2 },
+          ],
+          [
+            { x: W / 2, y: -H / 2, z: -D / 2 },
+            { x: W / 2, y: H / 2, z: -D / 2 },
+          ],
+          [
+            { x: W / 2, y: H / 2, z: -D / 2 },
+            { x: -W / 2, y: H / 2, z: -D / 2 },
+          ],
+          [
+            { x: -W / 2, y: H / 2, z: -D / 2 },
+            { x: -W / 2, y: -H / 2, z: -D / 2 },
+          ],
+          // back rim
+          [
+            { x: -W / 2, y: -H / 2, z: D / 2 },
+            { x: W / 2, y: -H / 2, z: D / 2 },
+          ],
+          [
+            { x: W / 2, y: -H / 2, z: D / 2 },
+            { x: W / 2, y: H / 2, z: D / 2 },
+          ],
+          [
+            { x: W / 2, y: H / 2, z: D / 2 },
+            { x: -W / 2, y: H / 2, z: D / 2 },
+          ],
+          [
+            { x: -W / 2, y: H / 2, z: D / 2 },
+            { x: -W / 2, y: -H / 2, z: D / 2 },
+          ],
+          // depth edges
+          [
+            { x: -W / 2, y: -H / 2, z: -D / 2 },
+            { x: -W / 2, y: -H / 2, z: D / 2 },
+          ],
+          [
+            { x: W / 2, y: -H / 2, z: -D / 2 },
+            { x: W / 2, y: -H / 2, z: D / 2 },
+          ],
+          [
+            { x: W / 2, y: H / 2, z: -D / 2 },
+            { x: W / 2, y: H / 2, z: D / 2 },
+          ],
+          [
+            { x: -W / 2, y: H / 2, z: -D / 2 },
+            { x: -W / 2, y: H / 2, z: D / 2 },
+          ],
+        ];
+
+        ctx.beginPath();
+        for (const [a, b] of outline) line3D(a, b, cam, proj, near);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+
+      // Events
+      window.addEventListener("resize", () => {
+        fitCanvas16x9();
+        render();
+      });
+      document
+        .querySelectorAll('input[name="view"]')
+        .forEach((el) => el.addEventListener("change", render));
+      gridSlider.addEventListener("input", render);
+
+      // Init
+      fitCanvas16x9();
+      render();
+    </script>
+  </body>
+</html>

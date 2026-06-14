@@ -22,7 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-*.jpg
+
+# Allow photos
+!public/photos/*.jpg
 
 .vercel
 .env*.local

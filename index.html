@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -140,7 +140,7 @@
               return false;
             }
           },
-          true
+          true,
         );
 
         // === 2. CHẶN CHUỘT PHẢI ===
@@ -151,7 +151,7 @@
             byebye();
             return false;
           },
-          true
+          true,
         );
 
         // === 3. PHÁT HIỆN BẰNG KÍCH THƯỚC WINDOW ===
@@ -278,7 +278,7 @@
               }
               return target[prop];
             },
-          }
+          },
         );
 
         // === 15. INFINITE DEBUGGER LOOP (Anti-debugging) ===
@@ -401,18 +401,18 @@
         }, 200);
 
         // === CHẶN SELECTION/COPY/CUT/DRAG ===
-        ["selectstart", "copy", "cut", "paste", "dragstart"].forEach(function (
-          evt
-        ) {
-          document.addEventListener(
-            evt,
-            function (e) {
-              e.preventDefault();
-              return false;
-            },
-            true
-          );
-        });
+        ["selectstart", "copy", "cut", "paste", "dragstart"].forEach(
+          function (evt) {
+            document.addEventListener(
+              evt,
+              function (e) {
+                e.preventDefault();
+                return false;
+              },
+              true,
+            );
+          },
+        );
 
         // === CHẶN PRINT ===
         window.addEventListener("beforeprint", function () {
@@ -461,11 +461,11 @@
         // === ANTI DEBUGGING MESSAGE ===
         console.log(
           "%c⚠️ STOP! ⚠️",
-          "color: red; font-size: 50px; font-weight: bold;"
+          "color: red; font-size: 50px; font-weight: bold;",
         );
         console.log(
           "%cThis is a protected page. Developer tools are not allowed.",
-          "color: red; font-size: 16px;"
+          "color: red; font-size: 16px;",
         );
       })();
     </script>
