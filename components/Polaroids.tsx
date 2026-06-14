@@ -222,7 +222,7 @@ export const Polaroids: React.FC<PolaroidsProps> = ({
 
       // Notify parent component about the closest photo
       if (onClosestPhotoChange) {
-        onClosestPhotoChange(uploadedPhotos[closestIndex]);
+        onClosestPhotoChange(photoData[closestIndex].url);
       }
     } else if (onClosestPhotoChange) {
       // Clear the overlay when two hands are not detected
