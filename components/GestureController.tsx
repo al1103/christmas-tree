@@ -401,12 +401,16 @@ export const GestureController: React.FC<GestureControllerProps> = ({
         thumbTip.x - indexTip.x,
         thumbTip.y - indexTip.y,
       );
-      const isPinching = pinchDistance < 0.08 && isIndexExtended;
+      
+      // Cho phép cả "chụm ngón" (pinch) HOẶC "chỉ ngón trỏ" (pointing)
+      const isPinching = pinchDistance < 0.08;
+      const isPointing = isIndexExtended && extendedFingers <= 2 && pinchDistance >= 0.08;
+      const isShowPhotoGesture = isPinching || isPointing;
 
-      if (isPinching) {
+      if (isShowPhotoGesture) {
         openFrames.current++;
         closedFrames.current = 0;
-        setGestureStatus("Detected: PINCH (Show Photo)");
+        setGestureStatus(`Detected: ${isPointing ? 'POINTING' : 'PINCH'} (Show Photo)`);
         if (openFrames.current > CONFIDENCE_THRESHOLD) {
           if (onTwoHandsDetectedRef.current)
             onTwoHandsDetectedRef.current(true);
@@ -523,8 +527,8 @@ export const GestureController: React.FC<GestureControllerProps> = ({
                     <span>Nắm tay - Khôi phục cây thông</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[#D4AF37]">👌</span>
-                    <span>Chụm ngón - Xem ảnh kỷ niệm</span>
+                    <span className="text-[#D4AF37]">👌/☝️</span>
+                    <span>Chụm/Trỏ ngón - Xem ảnh kỷ niệm</span>
                   </div>
                 </div>
               )}
